@@ -1,12 +1,13 @@
 @echo off
 chcp 65001 > nul
+set "PYTHONUTF8=1"
 title XR 사운드 디자인 1회차
 cd /d "%~dp0"
 set "PY=.venv-win\Scripts\python.exe"
 
 if exist "%PY%" goto check
 echo 처음 실행: Python 가상환경을 만듭니다...
-py -3 -m venv .venv-win 2> nul || python -m venv .venv-win
+py -3 -m venv .venv-win > nul 2>&1 || python -m venv .venv-win
 if not exist "%PY%" goto no_python
 
 :check

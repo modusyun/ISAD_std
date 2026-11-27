@@ -16,7 +16,9 @@ import io
 import json
 import re
 import shutil
+import struct
 import subprocess
+import sys
 import threading
 import time
 import traceback
@@ -27,6 +29,14 @@ from fractions import Fraction
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
+
+# Windows 기본 콘솔(cp949)에서도 한글/특수문자 출력이 깨지지 않도록 UTF-8 설정
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
 
 import numpy as np
 import torch
@@ -100,7 +110,7 @@ def amp():
 
 
 def run(cmd):
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:
         raise ApiError(500, f"{cmd[0]} 실패: {result.stderr.strip()[-400:]}")
     return result.stdout
@@ -124,39 +134,47 @@ def probe(path):
 # ---------------------------------------------------------------- 세션과 대상
 
 class Target:
-    def __init__(self, target_id, name, state):
+    def __init__(self, target_id, name, state, seed_frame=1):
         self.id, self.name, self.state = target_id, name, state
+        self.seed_frame = seed_frame
         self.status = "마스크 확인"
         self.positive = set()   # 양성 클릭이 있는 표본 번호
         self.prompts = set()    # 클릭이 있는 표본 번호
-        self.results = {}       # 영상 프레임(1부터) -> 지표
+        self.results = {}       # 영상 프레임 -> 지표
         self.masks = {}         # 영상 프레임 -> 마스크 PNG
         self.previews = {}      # 클릭한 프레임의 미리보기 (영상 프레임 -> (지표, PNG))
 
     def summary(self):
         return {"id": self.id, "name": self.name, "status": self.status, "tracked": len(self.results)}
 
+    def track_summary(self):
+        return {"id": self.id, "name": self.name, "seed_frame": self.seed_frame,
+                "status": self.status, "tracked": len(self.results)}
+
 
 class Session:
-    def __init__(self, session_id, video_path, info):
+    def __init__(self, session_id, video_path, info, zero_based=False):
         self.id, self.video_path, self.info = session_id, video_path, info
         self.dir = video_path.parent
+        self.zero_based = zero_based
         self.prep = None  # {"width", "stride", "scale", "count", "dir", "track_w", "track_h"}
         self.targets = {}
         self.cancel = threading.Event()
-        self.job = {"status": "idle", "target": None, "progress": 0, "total": 0, "elapsed": 0.0, "error": None}
+        self.job = {"status": "idle", "target": None, "progress": 0, "total": 0, "frame": None, "elapsed": 0.0, "error": None}
 
     def sample_index(self, frame):
-        """영상 프레임(1부터) -> 표본 번호. 추적 간격의 배수 프레임만 받는다."""
+        """영상 프레임 -> 표본 번호. 1기반 세션은 추적 간격의 배수 프레임만 받는다."""
         if not self.prep:
             raise ApiError(400, "먼저 '추적 준비'를 하세요.")
-        k, rest = divmod(int(frame) - 1, self.prep["stride"])
+        offset = 0 if self.zero_based else 1
+        k, rest = divmod(int(frame) - offset, self.prep["stride"])
         if rest or not 0 <= k < self.prep["count"]:
             raise ApiError(400, f"프레임 {frame}은 추적 간격({self.prep['stride']})의 표본 프레임이 아닙니다.")
         return k
 
     def frame_of(self, k):
-        return 1 + k * self.prep["stride"]
+        offset = 0 if self.zero_based else 1
+        return offset + k * self.prep["stride"]
 
 
 def get_session(session_id):
@@ -348,6 +366,7 @@ def run_tracking(session, target, mode, start_k):
                     metrics, png = mask_result(session, frame, masks[0, 0], frame_output(target.state, k))
                     target.results[frame], target.masks[frame] = metrics, png
                     session.job["progress"] += 1
+                    session.job["frame"] = frame
                     session.job["elapsed"] = round(time.time() - started, 1)
                 if session.cancel.is_set():
                     break
@@ -383,14 +402,16 @@ def start_tracking(req, session_id, target_id):
     session.cancel.clear()
     target.status = "추적 중"
     # 클라이언트가 곧바로 상태를 물어도 running이 보이도록 스레드 시작 전에 바꾼다
-    session.job = {"status": "running", "target": target.id, "progress": 0, "total": total, "elapsed": 0.0, "error": None}
+    session.job = {"status": "running", "target": target.id, "progress": 0, "total": total, "frame": None, "elapsed": 0.0, "error": None}
     threading.Thread(target=run_tracking, args=(session, target, mode, start_k), daemon=True).start()
     return {"ok": True, "total": total}
 
 
 def status(req, session_id):
     session = get_session(session_id)
-    return {"job": session.job, "targets": [t.summary() for t in session.targets.values()]}
+    return {"job": session.job,
+            "targets": [t.summary() for t in session.targets.values()],
+            "tracks": [t.track_summary() for t in session.targets.values()]}
 
 
 def results(req, session_id, target_id):
@@ -450,14 +471,126 @@ def export_zip(req):
     return Binary(zip_path.read_bytes(), "application/zip")
 
 
+def legacy_metrics(m):
+    """2회차 스튜디오(xr_sound_studio.html) 형식으로 지표를 변환한다."""
+    visible = bool(m.get("area"))
+    bx, by, bw, bh = m.get("bbox_x"), m.get("bbox_y"), m.get("bbox_w"), m.get("bbox_h")
+    sx = round(bx + bw / 2.0, 1) if visible and bx is not None and bw is not None else None
+    sy = round(by + bh / 2.0, 1) if visible and by is not None and bh is not None else None
+    return {
+        "frame": m["frame"],
+        "bbox_x": bx,
+        "bbox_y": by,
+        "bbox_width": bw,
+        "bbox_height": bh,
+        "mask_area": m.get("area", 0),
+        "confidence": m.get("confidence", 0.0),
+        "screen_x": sx,
+        "screen_y": sy,
+        "visible": visible,
+    }
+
+
+def create_frame_session(req):
+    """2회차 스튜디오 호환: 브라우저가 JPEG 프레임을 직접 올리는 세션을 만든다."""
+    body = req.json()
+    frame_count = max(1, int(body.get("frame_count") or 1))
+    width = max(2, int(body.get("width") or 640))
+    height = max(2, int(body.get("height") or 360))
+    fps = float(body.get("fps") or 30.0)
+    for old in list(SESSIONS.values()):
+        old.cancel.set()
+        shutil.rmtree(old.dir, ignore_errors=True)
+    SESSIONS.clear()
+    session_id = uuid.uuid4().hex[:12]
+    folder = DATA / session_id
+    frames_dir = folder / "frames"
+    frames_dir.mkdir(parents=True)
+    info = {"width": width, "height": height, "fps": fps, "frames": frame_count, "duration": frame_count / fps}
+    session = Session(session_id, folder / "video.mp4", info, zero_based=True)
+    session.prep = {"width": width, "stride": 1, "scale": 1.0, "count": frame_count,
+                    "dir": frames_dir, "track_w": width, "track_h": height}
+    SESSIONS[session_id] = session
+    return {"session_id": session_id}
+
+
+def upload_frame_chunk(req, session_id):
+    """2회차 스튜디오 호환: [4바이트 빅엔디안 길이 + JPEG] 연속 청크를 저장한다."""
+    session = get_session(session_id)
+    start = int(req.query.get("start", ["0"])[0])
+    data = req.body
+    offset = 0
+    written = 0
+    frames_dir = session.prep["dir"]
+    while offset + 4 <= len(data):
+        size = struct.unpack(">I", data[offset:offset + 4])[0]
+        offset += 4
+        if offset + size > len(data):
+            raise ApiError(400, "프레임 청크 데이터가 손상되었습니다.")
+        (frames_dir / f"{start + written:06d}.jpg").write_bytes(data[offset:offset + size])
+        offset += size
+        written += 1
+    return {"ok": True, "written": written}
+
+
+def add_track_legacy(req, session_id):
+    session = get_session(session_id)
+    model_ready(session)
+    body = req.json()
+    frame, k, x, y = read_click(session, body)
+    name = str(body.get("name") or f"대상 {len(session.targets) + 1}")[:80]
+    with MODEL_LOCK, amp():
+        state = predictor.init_state(str(session.prep["dir"]), offload_state_to_cpu=DEVICE == "cuda")
+        _, _, masks = predictor.add_new_points_or_box(state, k, 1, points=[[x, y]], labels=[1])
+        metrics, png = mask_result(session, frame, masks[0, 0], frame_output(state, k, temp=True))
+    target = Target(max(session.targets, default=0) + 1, name, state, seed_frame=frame)
+    target.positive.add(k)
+    target.prompts.add(k)
+    target.previews[frame] = (metrics, png)
+    session.targets[target.id] = target
+    return {"id": target.id, "name": name, "seed_frame": frame,
+            "metrics": legacy_metrics(metrics), "mask_png_base64": base64.b64encode(png).decode()}
+
+
+def add_prompt_legacy(req, session_id, target_id):
+    res = add_point(req, session_id, target_id)
+    res["metrics"] = legacy_metrics(res["metrics"])
+    return res
+
+
+def track_results_legacy(req, session_id, target_id):
+    target = get_target(get_session(session_id), target_id)
+    return {"frames": [legacy_metrics(target.results[f]) for f in sorted(target.results)]}
+
+
+def track_frame_legacy(req, session_id, target_id, frame):
+    target = get_target(get_session(session_id), target_id)
+    frame = int(frame)
+    if frame in target.masks:
+        png = target.masks[frame]
+        metrics = target.results[frame]
+    elif frame in target.previews:
+        metrics, png = target.previews[frame]
+    else:
+        raise ApiError(404, "이 프레임의 마스크가 없습니다.")
+    return {"mask_png_base64": base64.b64encode(png).decode(), "metrics": legacy_metrics(metrics)}
+
+
 ROUTES = [
     ("GET", r"/health", health),
     ("POST", r"/api/videos", upload_video),
+    ("POST", r"/api/sessions", create_frame_session),
+    ("POST", r"/api/sessions/(\w+)/frames", upload_frame_chunk),
     ("POST", r"/api/sessions/(\w+)/prepare", prepare),
     ("POST", r"/api/sessions/(\w+)/targets", add_target),
     ("POST", r"/api/sessions/(\w+)/targets/(\d+)/points", add_point),
     ("POST", r"/api/sessions/(\w+)/targets/(\d+)/delete", delete_target),
     ("POST", r"/api/sessions/(\w+)/targets/(\d+)/track", start_tracking),
+    ("POST", r"/api/sessions/(\w+)/tracks", add_track_legacy),
+    ("POST", r"/api/sessions/(\w+)/tracks/(\d+)/prompts", add_prompt_legacy),
+    ("POST", r"/api/sessions/(\w+)/tracks/(\d+)/start", start_tracking),
+    ("GET", r"/api/sessions/(\w+)/tracks/(\d+)/results", track_results_legacy),
+    ("GET", r"/api/sessions/(\w+)/tracks/(\d+)/frame/(\d+)", track_frame_legacy),
     ("GET", r"/api/sessions/(\w+)/status", status),
     ("GET", r"/api/sessions/(\w+)/targets/(\d+)/results", results),
     ("GET", r"/api/sessions/(\w+)/targets/(\d+)/mask/(\d+)", mask),
@@ -553,7 +686,7 @@ def load_model(model):
         ckpt.parent.mkdir(exist_ok=True)
         partial = ckpt.with_suffix(".part")
         urllib.request.urlretrieve(CKPT_URL.format(model), partial)
-        partial.rename(ckpt)
+        partial.replace(ckpt)
     predictor = build_sam2_video_predictor(f"configs/sam2.1/sam2.1_hiera_{MODELS[model]}.yaml", str(ckpt), device=DEVICE)
 
 

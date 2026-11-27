@@ -2,7 +2,8 @@
 
 | 파일 | 내용 |
 | --- | --- |
-| `xr_sound_studio.html` | 통합 웹 스튜디오 (4채널 테스트, 동선 시각화, 영상 방향 분석, SAM 2 추적, 믹스). 브라우저로 연다 |
+| `xr_sound_studio.html` | 단일 창 통합 워크스페이스 (① 준비 · ② 카메라 · ③ 대상 · ④ 장면 · ⑤ 소리 · ⑥ 출력). 브라우저로 연다 |
+| `studio_engine.js`, `studio_app.js` | 스튜디오 순수 계산·직렬화 엔진 모듈과 화면·오디오 컨트롤러. HTML과 같은 폴더에 둔다 |
 | `channel_test_b64.js`, `moving_sound_b64.js`, `presets.js` | 스튜디오가 읽는 기본 음원과 동선 프리셋. HTML과 같은 폴더에 둔다 |
 | `xr_sound_design.py` | 터미널판 1회차 프로그램 (채널 테스트, 동선 렌더링, 4채널 WAV 저장) |
 | `sam2_server.py` | 스튜디오의 'SAM 2 영상 대상 추적'이 쓰는 로컬 서버 |

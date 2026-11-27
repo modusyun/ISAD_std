@@ -10,6 +10,7 @@
 """
 
 import copy
+import sys
 import time
 import math
 import csv
@@ -18,6 +19,14 @@ from pathlib import Path
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
+
+# Windows 기본 콘솔(cp949)에서도 이모지·특수문자가 깨지거나 UnicodeEncodeError가 나지 않도록 UTF-8 설정
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
 
 # =============================================================================
 # 0. 스피커 구성 정의
@@ -602,21 +611,42 @@ def render_spatial_audio(audio_path, traj_data, calibration=None):
 def get_audio_device():
     """사용 가능한 오디오 장치 중 4채널 지원 장치 또는 기본 장치를 선택합니다."""
     devices = sd.query_devices()
-    default_out_idx = sd.default.device[1]
-    
-    # 4채널 이상 물리 장치 검색
+    default_out_idx = sd.default.device[1] if sd.default.device else None
+
+    def _can_open(idx, ch):
+        try:
+            sd.check_output_settings(device=idx, channels=ch)
+            return True
+        except Exception:
+            return False
+
+    # 기본 출력 장치가 4채널 이상을 지원하면 우선 사용
+    if default_out_idx is not None and default_out_idx >= 0:
+        def_d = sd.query_devices(default_out_idx)
+        if def_d["max_output_channels"] >= 4 and _can_open(default_out_idx, 4):
+            return default_out_idx, 4, f"[{default_out_idx}] {def_d['name']} (물리 4채널)"
+
+    # 4채널 이상 물리 장치 검색 (Windows에서 열 수 없는 가상/WDM-KS 장치 제외)
     multi_idx = None
     for idx, d in enumerate(devices):
-        if d["max_output_channels"] >= 4:
+        if d["max_output_channels"] >= 4 and _can_open(idx, 4):
             multi_idx = idx
             break
 
     if multi_idx is not None:
         return multi_idx, 4, f"[{multi_idx}] {devices[multi_idx]['name']} (물리 4채널)"
-    else:
-        def_d = sd.query_devices(default_out_idx)
-        ch_count = def_d["max_output_channels"]
-        return default_out_idx, ch_count, f"[{default_out_idx}] {def_d['name']} (스테레오 다운믹스 모드)"
+
+    if default_out_idx is None or default_out_idx < 0:
+        for idx, d in enumerate(devices):
+            if d["max_output_channels"] >= 1:
+                default_out_idx = idx
+                break
+    if default_out_idx is None or default_out_idx < 0:
+        raise sd.PortAudioError("사용 가능한 오디오 출력 장치를 찾을 수 없습니다.")
+
+    def_d = sd.query_devices(default_out_idx)
+    ch_count = def_d["max_output_channels"]
+    return default_out_idx, ch_count, f"[{default_out_idx}] {def_d['name']} (스테레오 다운믹스 모드)"
 
 def play_multichannel_audio(audio_4ch, sr, title="공간 음향 재생"):
     """
@@ -853,7 +883,7 @@ def main():
                 if sub == "2":
                     test_wav = moving_sound_wav
                 elif sub == "3":
-                    custom = input("  음원 파일 경로 입력: ").strip()
+                    custom = input("  음원 파일 경로 입력: ").strip().strip('"').strip("'")
                     if Path(custom).is_file():
                         test_wav = Path(custom)
                 run_speaker_channel_test(test_wav)
@@ -867,7 +897,7 @@ def main():
                 html_path = generate_interactive_html_visualizer(traj_data)
                 open_browser = input(" 브라우저에서 인터랙티브 그래프를 열까요? (y/n) [기본: y]: ").strip().lower()
                 if open_browser != "n":
-                    webbrowser.open(str(html_path))
+                    webbrowser.open(html_path.resolve().as_uri())
 
             elif choice == "3":
                 if cur_csv_path is None or not cur_csv_path.is_file():
@@ -929,7 +959,7 @@ def main():
                 studio_html = BASE_DIR / "xr_sound_studio.html"
                 if studio_html.is_file():
                     print(" 🌐 웹 스튜디오를 브라우저에서 실행합니다...")
-                    webbrowser.open(str(studio_html))
+                    webbrowser.open(studio_html.resolve().as_uri())
                 else:
                     print(" [!] xr_sound_studio.html 파일을 찾을 수 없습니다.")
 
