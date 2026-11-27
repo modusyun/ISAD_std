@@ -1,0 +1,51 @@
+{
+  "format": "isad-session3-settings",
+  "version": 1,
+  "video": {
+    "file": null,
+    "width_px": null,
+    "height_px": null,
+    "fps": null,
+    "frames": null,
+    "hfov_deg": null
+  },
+  "oral_values": {
+    "person_height_m": null,
+    "eye_height_m": null,
+    "near_threshold_m": null,
+    "atten_ref_m": null,
+    "atten_k": 1.0,
+    "confidence_threshold": null,
+    "known_sizes_m": {}
+  },
+  "listener": {
+    "reference": "camera",
+    "me_ear_height_m": null,
+    "me_facing_deg": 0.0
+  },
+  "camera": {
+    "me_target": null,
+    "horizon": {
+      "method": "auto",
+      "pitch_input_deg": null,
+      "corrections": []
+    },
+    "view_segments": [],
+    "height": {
+      "first_person_m": null,
+      "third_person_method": "from_person",
+      "third_person_input_m": null,
+      "height_person_target": null
+    },
+    "yaw_keyframes": []
+  },
+  "targets": [],
+  "fixed_sources": [],
+  "sources": [],
+  "outputs": {
+    "wav_4ch": null,
+    "video_mp4": null,
+    "gain_log_csv": null,
+    "path_csvs": []
+  }
+}

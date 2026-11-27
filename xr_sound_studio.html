@@ -1,0 +1,4324 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XR 사운드 디자인 통합 스튜디오 - 1회차(공간음향) + 2회차(비디오 방향분석)</title>
+<!-- 내장 오디오 데이터 및 프리셋 (이 HTML과 같은 폴더) -->
+<script src="channel_test_b64.js"></script>
+<script src="moving_sound_b64.js"></script>
+<script src="presets.js"></script>
+<style>
+  :root {
+    --bg-main: #0b1120;
+    --bg-card: #131d31;
+    --bg-card-sub: #1e293b;
+    --border: #334155;
+    --accent: #38bdf8;
+    --accent-purple: #a855f7;
+    --fl-color: #3b82f6;
+    --fr-color: #10b981;
+    --rl-color: #f59e0b;
+    --rr-color: #ec4899;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 14px 18px;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Pretendard', sans-serif;
+  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .header h1 {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .step-tabs {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+  .step-tab {
+    padding: 6px 11px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid var(--border);
+    background: #1e293b;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .step-tab:hover { background: #334155; color: white; }
+  .step-tab.active {
+    background: linear-gradient(135deg, #0284c7, #2563eb);
+    color: white;
+    border-color: #38bdf8;
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+  }
+  .step-tab.tab-video {
+    background: linear-gradient(135deg, #4c1d95, #6d28d9);
+    border-color: #a855f7;
+    color: #f3e8ff;
+  }
+  .step-tab.tab-video:hover {
+    background: linear-gradient(135deg, #5b21b6, #7c3aed);
+  }
+  .step-tab.tab-video.active {
+    background: linear-gradient(135deg, #7c3aed, #9333ea);
+    border-color: #c084fc;
+    color: white;
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
+  }
+
+  .mode-switch-box {
+    display: flex;
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 4px;
+  }
+  .mode-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .mode-btn.active {
+    background: #2563eb;
+    color: white;
+  }
+  .main-layout {
+    display: grid;
+    grid-template-columns: 1.25fr 0.75fr;
+    gap: 16px;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    margin-bottom: 12px;
+  }
+  .card:last-child { margin-bottom: 0; }
+  .card-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 0;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #e2e8f0;
+  }
+  canvas#radarCanvas {
+    display: block;
+    width: 100%;
+    height: 380px;
+    background: #060913;
+    border-radius: 8px;
+    border: 1px solid #1e293b;
+    cursor: crosshair;
+  }
+  .transport-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-card-sub);
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-top: 10px;
+    border: 1px solid #334155;
+    flex-wrap: wrap;
+  }
+  button {
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+  }
+  button:hover { background: #1d4ed8; }
+  button:active { transform: scale(0.97); }
+  button.btn-secondary { background: #334155; }
+  button.btn-secondary:hover { background: #475569; }
+  button.btn-success { background: #059669; }
+  button.btn-success:hover { background: #047857; }
+  button.btn-accent { background: #7c3aed; }
+  button.btn-accent:hover { background: #6d28d9; }
+  button.btn-sm { padding: 4px 8px; font-size: 11px; }
+
+  .time-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: #334155;
+    outline: none;
+  }
+  .time-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  /* 3단계 핵심 연산 모니터 */
+  .calc-monitor-box {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-top: 10px;
+  }
+  .calc-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    text-align: center;
+  }
+  .calc-item {
+    background: #131d31;
+    border: 1px solid #1e293b;
+    border-radius: 6px;
+    padding: 6px 8px;
+  }
+  .calc-lbl { font-size: 10px; color: var(--text-secondary); font-weight: 600; }
+  .calc-val { font-size: 12px; font-weight: 700; color: #38bdf8; font-family: monospace; margin-top: 2px; }
+
+  /* 실시간 4채널 게인 게이지 */
+  .gain-display-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .gain-spk-box {
+    padding: 5px 8px;
+    border-radius: 6px;
+    background: #131d31;
+    border: 1px solid #1e293b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+  }
+
+  /* 실시간 VU 미터 */
+  .meter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .meter-box {
+    background: var(--bg-card-sub);
+    padding: 6px;
+    border-radius: 8px;
+    border-left: 3px solid #64748b;
+    text-align: center;
+  }
+  .meter-box.fl { border-left-color: var(--fl-color); }
+  .meter-box.fr { border-left-color: var(--fr-color); }
+  .meter-box.rl { border-left-color: var(--rl-color); }
+  .meter-box.rr { border-left-color: var(--rr-color); }
+  .meter-name { font-size: 10px; font-weight: 700; color: #e2e8f0; }
+  .meter-bar-wrap {
+    width: 14px;
+    height: 48px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 3px;
+    margin: 4px auto 2px auto;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  .meter-fill {
+    width: 100%;
+    height: 0%;
+    background: linear-gradient(to top, #10b981 0%, #38bdf8 70%, #ef4444 100%);
+    transition: height 0.05s ease-out;
+  }
+  .meter-val { font-size: 9px; font-family: monospace; color: #cbd5e1; }
+
+  /* 4단계 청감 보정 파라미터 컨트롤 */
+  .calib-param-group {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 7px;
+  }
+  .calib-param-group:last-child { margin-bottom: 0; }
+  .calib-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .calib-slider {
+    width: 100%;
+    -webkit-appearance: none;
+    height: 5px;
+    background: #334155;
+    border-radius: 3px;
+    outline: none;
+  }
+  .calib-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  .calib-desc {
+    font-size: 9px;
+    color: #94a3b8;
+    margin-top: 2px;
+  }
+
+  /* 탭 패널 컨테이너 */
+  .panel-section { display: none; }
+  .panel-section.active-panel { display: block; }
+
+  .preset-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .btn-preset {
+    background: #1e293b;
+    border: 1px solid var(--border);
+    color: #cbd5e1;
+    padding: 7px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    transition: all 0.2s;
+  }
+  .btn-preset:hover { background: #334155; border-color: var(--accent); }
+  .btn-preset.active {
+    background: rgba(2, 132, 199, 0.25);
+    border-color: #38bdf8;
+    color: white;
+  }
+  .preset-desc { font-size: 9px; color: #94a3b8; font-weight: 400; }
+
+  .file-dropzone {
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    text-align: center;
+    background: rgba(15, 23, 42, 0.4);
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 6px;
+  }
+  .file-dropzone:hover { border-color: var(--accent); color: var(--text-primary); }
+
+  .status-tag {
+    font-size: 10px;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.1);
+    padding: 2px 7px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+
+  /* ========================================================================= */
+  /* [2회차 전용 스타일: 비디오 방향 분석 뷰포트 & 컨트롤]                    */
+  /* ========================================================================= */
+  .video-viewport-wrapper {
+    position: relative;
+    background: #000000;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: crosshair;
+  }
+  video#vVideo {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+  }
+  canvas#vOverlayCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: auto;
+  }
+  .v-drop-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(10, 14, 23, 0.90);
+    backdrop-filter: blur(4px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    z-index: 10;
+    transition: opacity 0.3s;
+  }
+  .v-drop-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .v-drop-box {
+    border: 2px dashed #38bdf8;
+    border-radius: 10px;
+    padding: 24px 36px;
+    text-align: center;
+    background: rgba(56, 189, 248, 0.05);
+    cursor: pointer;
+  }
+  .v-floating-hud {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .v-hud-val {
+    font-family: monospace;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .direction-display-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .direction-card {
+    background: linear-gradient(145deg, #0e1626, #162238);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+  }
+  .direction-card.azimuth { border-bottom: 3px solid #38bdf8; }
+  .direction-card.elevation { border-bottom: 3px solid #a855f7; }
+  .dir-name { font-size: 10px; font-weight: 700; color: var(--text-secondary); }
+  .dir-angle { font-size: 24px; font-weight: 800; font-family: monospace; color: white; margin: 2px 0; }
+  .dir-desc { font-size: 10px; color: #94a3b8; }
+
+  .fov-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .fov-box {
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .fov-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    font-weight: 700;
+    color: white;
+    font-family: monospace;
+    outline: none;
+  }
+  .kf-table-wrap {
+    max-height: 140px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #090d16;
+  }
+  table.v-kf-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    font-family: monospace;
+    text-align: right;
+  }
+  table.v-kf-table th, table.v-kf-table td {
+    padding: 5px 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  table.v-kf-table th {
+    background: #111827;
+    color: var(--text-secondary);
+    position: sticky;
+    top: 0;
+  }
+  table.v-kf-table tr:hover { background: rgba(56, 189, 248, 0.1); cursor: pointer; }
+  .kbd-hint {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 3px;
+    padding: 1px 4px;
+    font-size: 9px;
+    font-family: monospace;
+  }
+  .mix-track-card {
+    background: #0c1424;
+    border: 1px solid var(--border);
+    border-left: 3px solid #38bdf8;
+    border-radius: 8px;
+    padding: 9px;
+    margin-bottom: 8px;
+  }
+  .mix-track-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 7px;
+  }
+  .mix-track-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+  .mix-track-grid input, .mix-track-grid select {
+    min-width: 0;
+    width: 100%;
+    background: #111827;
+    border: 1px solid #334155;
+    color: #f8fafc;
+    border-radius: 4px;
+    padding: 4px;
+    font-size: 11px;
+  }
+  .mix-lane {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+    min-height: 23px;
+    font-size: 9px;
+    color: var(--text-secondary);
+  }
+  .mix-lane-bar {
+    position: relative;
+    height: 15px;
+    background: #111827;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .mix-lane-fill {
+    position: absolute;
+    top: 2px;
+    height: 11px;
+    border-radius: 3px;
+    min-width: 2px;
+  }
+  .mix-lane-playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #fff;
+    box-shadow: 0 0 5px #fff;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .main-layout.mix-layout {
+    grid-template-columns: minmax(0, 1.1fr) minmax(330px, 0.9fr);
+  }
+  @media (max-width: 720px) {
+    .main-layout.mix-layout { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 헤더 영역 -->
+<div class="header">
+  <div>
+    <h1><span>🎧</span> XR 사운드 디자인 통합 스튜디오</h1>
+    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+      1회차(4채널 공간음향 렌더링 & 청감보정) + 2회차(비디오 화면 위치 ➔ 공간음향 방향 변환)
+    </div>
+  </div>
+  <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+    <!-- 출력 모드 토글 (1단계 기능) -->
+    <div class="mode-switch-box">
+      <button id="btnModeDownmix" class="mode-btn active" onclick="setOutputMode('downmix')">
+        <span>🎧</span> 이어폰 (다운믹스)
+      </button>
+      <button id="btnModeMulti" class="mode-btn" onclick="setOutputMode('multichannel')">
+        <span>🔊</span> 4채널 물리 출력
+      </button>
+    </div>
+
+    <!-- 단계별 탭 네비게이션 -->
+    <div class="step-tabs">
+      <button class="step-tab" onclick="switchTab('step1')">1단계: 라우팅</button>
+      <button class="step-tab" onclick="switchTab('step2')">2단계: 궤적시각화</button>
+      <button class="step-tab active" onclick="switchTab('step3')">3단계: 렌더링</button>
+      <button class="step-tab" onclick="switchTab('step4')">4단계: 청감보정</button>
+      <button class="step-tab tab-video" id="tabBtnVideo" onclick="switchTab('step_video')">🎬 2회차: 비디오 방향 분석</button>
+      <button class="step-tab tab-video" id="tabBtnMix" onclick="switchTab('step_mix')">🎚️ 다중 음원 시나리오</button>
+      <button class="step-tab" onclick="switchTab('all')">✨ 통합뷰</button>
+    </div>
+  </div>
+</div>
+
+<div class="main-layout">
+  <!-- 왼쪽 영역: 뷰포트 (평면도 or 비디오 뷰포트) & 트랜스포트 제어 -->
+  <div>
+    <!-- [뷰 A]: 1회차 청취자 중심 평면도 카드 -->
+    <div class="card" id="viewRadarCard">
+      <div class="card-title">
+        <span>📍 청취자 중심 평면도 (상단 정면 0°, 우측 +90°, 리스너 중심)</span>
+        <span id="canvasStatusTag" class="status-tag">재생 대기 중</span>
+      </div>
+
+      <!-- 2D 평면도 캔버스 -->
+      <canvas id="radarCanvas" width="700" height="380"></canvas>
+
+      <!-- 1회차 트랜스포트 제어바 -->
+      <div class="transport-bar">
+        <button id="btnPlayPause" class="btn-success" onclick="togglePlayPause()">
+          <span id="playIcon">▶</span> 재생
+        </button>
+        <button id="btnStop" class="btn-secondary" onclick="stopPlayback()">
+          <span>⏹</span> 정지
+        </button>
+        <input type="range" id="timeSlider" class="time-slider" min="0" max="12" step="0.02" value="0" oninput="onTimeSeek(this.value)">
+        <span id="timeDisplay" style="font-size: 11px; font-family: monospace; color: #cbd5e1; min-width: 80px; text-align: center;">0.00 / 12.00s</span>
+
+        <select id="selAudioSource" style="background:#0f172a; color:#f8fafc; border:1px solid #334155; border-radius:4px; padding:4px 6px; font-size:11px;" onchange="changeAudioSource(this.value)">
+          <option value="moving" selected>Moving_sound.wav (내장)</option>
+          <option value="channel">channel_test.wav (내장)</option>
+          <option value="beep">440Hz Beep 신호음</option>
+          <option value="custom">사용자 음원 파일</option>
+        </select>
+
+        <label style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; cursor: pointer;">
+          <input type="checkbox" id="chkLoop" checked> 루프
+        </label>
+      </div>
+
+      <!-- [3단계 핵심 기능] 실시간 연산 모니터 -->
+      <div class="calc-monitor-box">
+        <div style="font-size: 11px; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; display: flex; justify-content: space-between;">
+          <span>⚡ [3단계] 실시간 렌더링 연산 모니터 (샘플 ➔ 시각 ➔ 프레임 ➔ 게인)</span>
+          <span style="font-size: 10px; color: #38bdf8; font-family: monospace;">48,000 samples = 1.00s | 30 FPS</span>
+        </div>
+
+        <div class="calc-row">
+          <div class="calc-item">
+            <div class="calc-lbl">① 출력 샘플 수</div>
+            <div id="monSamples" class="calc-val">0 / 576,000</div>
+          </div>
+          <div class="calc-item">
+            <div class="calc-lbl">② 현재 재생 시각</div>
+            <div id="monTime" class="calc-val">0.000 초</div>
+          </div>
+          <div class="calc-item">
+            <div class="calc-lbl">③ 매핑된 CSV 프레임</div>
+            <div id="monFrame" class="calc-val">Frame 0 / 360</div>
+          </div>
+          <div class="calc-item">
+            <div class="calc-lbl">④ 객체 거리 & 고도</div>
+            <div id="monDistEl" class="calc-val">2.0m | 0.0°</div>
+          </div>
+        </div>
+
+        <!-- 3단계 기능: 스피커별 실시간 게인 -->
+        <div class="gain-display-row">
+          <div class="gain-spk-box">
+            <strong style="color: var(--fl-color);">FL (-30°)</strong>
+            <span id="gainValFL" style="font-family: monospace; font-weight: 700; color: #38bdf8;">0.00 (-∞ dB)</span>
+          </div>
+          <div class="gain-spk-box">
+            <strong style="color: var(--fr-color);">FR (+30°)</strong>
+            <span id="gainValFR" style="font-family: monospace; font-weight: 700; color: #10b981;">0.00 (-∞ dB)</span>
+          </div>
+          <div class="gain-spk-box">
+            <strong style="color: var(--rl-color);">RL (-135°)</strong>
+            <span id="gainValRL" style="font-family: monospace; font-weight: 700; color: #f59e0b;">0.00 (-∞ dB)</span>
+          </div>
+          <div class="gain-spk-box">
+            <strong style="color: var(--rr-color);">RR (+135°)</strong>
+            <span id="gainValRR" style="font-family: monospace; font-weight: 700; color: #ec4899;">0.00 (-∞ dB)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 실시간 4채널 레벨 미터 -->
+      <div class="meter-grid">
+        <div class="meter-box fl">
+          <div class="meter-name">FL (전면 좌)</div>
+          <div class="meter-bar-wrap"><div id="meterFL" class="meter-fill"></div></div>
+          <div id="txtFL" class="meter-val">-∞ dB</div>
+        </div>
+        <div class="meter-box fr">
+          <div class="meter-name">FR (전면 우)</div>
+          <div class="meter-bar-wrap"><div id="meterFR" class="meter-fill"></div></div>
+          <div id="txtFR" class="meter-val">-∞ dB</div>
+        </div>
+        <div class="meter-box rl">
+          <div class="meter-name">RL (후면 좌)</div>
+          <div class="meter-bar-wrap"><div id="meterRL" class="meter-fill"></div></div>
+          <div id="txtRL" class="meter-val">-∞ dB</div>
+        </div>
+        <div class="meter-box rr">
+          <div class="meter-name">RR (후면 우)</div>
+          <div class="meter-bar-wrap"><div id="meterRR" class="meter-fill"></div></div>
+          <div id="txtRR" class="meter-val">-∞ dB</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- [뷰 B]: 2회차 비디오 뷰포트 & 타임라인 카드 (기본 숨김, 2회차 탭 시 표시) -->
+    <div class="card" id="viewVideoCard" style="display: none;">
+      <div class="card-title">
+        <span>🎬 [2회차] 비디오 화면 위치 ➔ 방향 분석 뷰포트</span>
+        <div style="display: flex; gap: 6px;">
+          <button class="btn-sm btn-accent" onclick="loadDefaultPracticeVideo()">실습 영상(Video.mp4) 열기</button>
+          <button class="btn-sm btn-secondary" onclick="document.getElementById('vFileInput').click()">내 파일 선택</button>
+          <input type="file" id="vFileInput" accept="video/mp4,video/webm" style="display:none;" onchange="onUserVideoFileSelected(event)">
+        </div>
+      </div>
+
+      <!-- 비디오 뷰포트 래퍼 -->
+      <div class="video-viewport-wrapper" id="vViewportWrapper">
+        <video id="vVideo" preload="auto" playsinline></video>
+        <canvas id="vOverlayCanvas"></canvas>
+
+        <!-- 비디오 드롭존 안내 오버레이 -->
+        <div class="v-drop-overlay" id="vDropOverlay">
+          <div class="v-drop-box" onclick="loadDefaultPracticeVideo()">
+            <div style="font-size: 28px; margin-bottom: 6px;">🎬</div>
+            <div style="font-size: 14px; font-weight: 700; color: #38bdf8; margin-bottom: 4px;">2회차 실습 영상을 불러오세요</div>
+            <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 12px;">이 곳을 클릭하거나, 파일을 드래그 앤 드롭하세요.</div>
+            <button class="btn-sm btn-accent">기본 실습 영상 (Video.mp4) 로드</button>
+          </div>
+        </div>
+
+        <!-- 뷰포트 플로팅 HUD -->
+        <div class="v-floating-hud">
+          <div>해상도: <span class="v-hud-val" id="vHudRes">1280 × 720</span></div>
+          <div>비율: <span class="v-hud-val" id="vHudAspect">16:9</span></div>
+          <div>FPS: <span class="v-hud-val" id="vHudFps">30.00</span></div>
+          <div>커서: <span class="v-hud-val" id="vHudCursor">X: 0, Y: 0</span></div>
+        </div>
+      </div>
+
+      <!-- 비디오 타임라인 컨트롤 바 -->
+      <div class="transport-bar" style="margin-top: 10px;">
+        <input type="range" class="time-slider" id="vTimelineSlider" min="0" max="750" value="0" step="1" oninput="seekVideoFrame(parseInt(this.value))">
+        <div id="vTimeInfo" style="font-family: monospace; font-size: 12px; color: #f1f5f9; min-width: 170px; text-align: center;">Frame: 0 / 750 (00:00.000)</div>
+      </div>
+
+      <!-- 프레임 정밀 제어 버튼 그룹 -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; flex-wrap: wrap; gap: 6px;">
+        <div style="display: flex; gap: 4px; align-items: center;">
+          <button class="btn-sm btn-secondary" onclick="seekVideoFrame(0)" title="처음으로 (Home)">⏮ Home</button>
+          <button class="btn-sm btn-secondary" onclick="seekVideoFrame(vState.currentFrame - 5)" title="-5프레임 (Shift+←)">◀◀ -5F</button>
+          <button class="btn-sm btn-secondary" onclick="seekVideoFrame(vState.currentFrame - 1)" title="1프레임 뒤로 (←)">◀ 이전F</button>
+          <button class="btn-sm btn-success" id="btnVPlayPause" onclick="toggleVideoPlay()">▶ 재생 <span class="kbd-hint">Space</span></button>
+          <button class="btn-sm btn-secondary" onclick="seekVideoFrame(vState.currentFrame + 1)" title="1프레임 앞으로 (→)">다음F ▶</button>
+          <button class="btn-sm btn-secondary" onclick="seekVideoFrame(vState.currentFrame + 5)" title="+5프레임 (Shift+→)">+5F ▶▶</button>
+          <button class="btn-sm btn-secondary" onclick="seekVideoFrame(vState.totalFrames)" title="끝으로 (End)">⏭ End</button>
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <button class="btn-sm btn-accent" onclick="addVideoKeyframe()" title="키프레임 추가 (K)">📌 키프레임 추가 <span class="kbd-hint">K</span></button>
+          <button class="btn-sm btn-secondary" onclick="clearVideoMarker()" title="마커 지우기 (C)">🧹 지우기 <span class="kbd-hint">C</span></button>
+          <label style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 3px; cursor: pointer;">
+            <input type="checkbox" id="vChkGrid" checked onchange="renderVideoOverlay()"> 그리드
+          </label>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 12px; margin-bottom: 0; border-color: rgba(16,185,129,0.45);">
+        <div class="card-title">
+          <span>🐝 탑 뷰 벌 떼 동선 추적</span>
+          <span id="beeTrackStatus" class="status-tag">기준 위치를 지정하세요</span>
+        </div>
+        <div style="font-size:11px; color:var(--text-secondary); line-height:1.6; margin-bottom:8px;">
+          영상에서 ‘나’ 위치와 정면 방향을 먼저 정한 뒤, 벌 떼 중심을 최대 10프레임 간격으로 클릭하세요.
+          키프레임 사이 위치는 선형 보간하고, 보이지 않음으로 표시된 구간은 무음 처리합니다.
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+          <button id="btnBeeSetMe" class="btn-sm btn-accent" onclick="setBeeInputMode('me')">1. ‘나’ 위치 지정</button>
+          <button id="btnBeeSetFront" class="btn-sm btn-secondary" onclick="setBeeInputMode('front')" disabled>2. 정면 방향 지정</button>
+          <button id="btnBeeTrack" class="btn-sm btn-secondary" onclick="setBeeInputMode('track')" disabled>3. 벌 떼 추적 입력</button>
+          <label style="font-size:11px; color:var(--text-secondary); display:flex; align-items:center; gap:4px;">
+            <input id="beeVisible" type="checkbox" checked> 현재 프레임에 벌 떼가 보임
+          </label>
+          <button class="btn-sm btn-secondary" onclick="recordBeeInvisible()">현재 프레임을 보이지 않음으로 기록</button>
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+          <button class="btn-sm btn-success" onclick="exportBeePathCsv()">벌 동선 CSV 저장</button>
+          <button class="btn-sm btn-accent" onclick="testPlayBeePath()">동선 시험 재생 (4채널)</button>
+          <button class="btn-sm btn-secondary" onclick="clearBeeTrack()">추적 초기화</button>
+          <span id="beeKeyframeCount" style="font-size:11px; color:var(--text-secondary); align-self:center;">키프레임 0개</span>
+        </div>
+        <div class="kf-table-wrap">
+          <table class="v-kf-table">
+            <thead><tr><th>프레임</th><th>시간</th><th>표시</th><th>방위각</th><th>X</th><th>Y</th></tr></thead>
+            <tbody id="beeKeyframeRows">
+              <tr><td colspan="6" style="text-align:center; color:#64748b; padding:10px;">키프레임이 없습니다.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 오른쪽 영역: 탭별 제어 패널 (3단계 렌더링 / 4단계 청감 보정 / 1단계 라우팅 / 2회차 비디오 방향 분석) -->
+  <div>
+    <!-- [2회차 전용 탭 패널]: 비디오 방향 분석 & 화각 설정 & 키프레임 연동 -->
+    <div id="panelStepVideo" class="panel-section">
+      <!-- 1. 방향 분석 결과 (방위각 / 고도각) -->
+      <div class="card">
+        <div class="card-title">
+          <span>🎯 선택 지점 공간 음향 방향</span>
+          <span class="status-tag" style="color: #a855f7; background: rgba(168,85,247,0.1);">실시간 계산</span>
+        </div>
+
+        <div class="direction-display-container">
+          <div class="direction-card azimuth">
+            <div class="dir-name">방위각 (AZIMUTH)</div>
+            <div class="dir-angle" id="vValAzimuth">0.0°</div>
+            <div class="dir-desc" id="vDescAzimuth">정면 중앙 (0.0°)</div>
+          </div>
+          <div class="direction-card elevation">
+            <div class="dir-name">고도각 (ELEVATION)</div>
+            <div class="dir-angle" id="vValElevation">0.0°</div>
+            <div class="dir-desc" id="vDescElevation">수평 중앙 (0.0°)</div>
+          </div>
+        </div>
+
+        <div style="background: #0f172a; border-radius: 6px; padding: 8px; font-size: 11px; font-family: monospace; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+          <div>클릭 픽셀: <span id="vCoordPixel" style="color: white; font-weight:700;">640, 360 px</span></div>
+          <div>중심 편차: <span id="vCoordDelta" style="color: #38bdf8; font-weight:700;">0, 0 px</span></div>
+        </div>
+
+        <!-- 2D 청취자 방향 나침반/레이더 -->
+        <div style="display: flex; justify-content: center; align-items: center; margin: 4px 0;">
+          <canvas id="vCompassCanvas" width="200" height="200" style="background: #090e18; border-radius: 50%; border: 1px solid var(--border);"></canvas>
+        </div>
+        <div style="text-align: center; font-size: 10px; color: var(--text-secondary);">
+          청취자 시점 방향 레이더 (상단 정면 0°, 우측 +, 좌측 -)
+        </div>
+      </div>
+
+      <!-- 2. 화각 (FOV) 계산기 -->
+      <div class="card">
+        <div class="card-title">
+          <span>📐 화각 (Field of View) 설정</span>
+          <span style="font-size: 10px; color: var(--accent-purple);">화면 비율 자동 계산</span>
+        </div>
+
+        <div class="fov-grid">
+          <div class="fov-box" style="border-color: rgba(56,189,248,0.5);">
+            <div style="font-size: 10px; color: var(--text-secondary); font-weight:600;">가로 화각 (H-FOV) [입력]</div>
+            <div style="display:flex; align-items:center; gap:4px;">
+              <input type="number" id="vInputHFov" class="fov-input" value="60.0" step="0.5" min="10" max="170" oninput="onHFovChanged(this.value)">
+              <span style="font-size: 12px; color: var(--text-secondary);">°</span>
+            </div>
+            <input type="range" id="vSliderHFov" min="20" max="120" value="60" step="1" style="width:100%;" oninput="onHFovSlider(this.value)">
+          </div>
+
+          <div class="fov-box">
+            <div style="font-size: 10px; color: var(--text-secondary); font-weight:600;">세로 화각 (V-FOV) [자동계산]</div>
+            <div style="display:flex; align-items:center; gap:4px;">
+              <span id="vDispVFov" style="font-size: 18px; font-weight: 700; color: #c084fc; font-family: monospace;">36.00</span>
+              <span style="font-size: 12px; color: var(--text-secondary);">°</span>
+            </div>
+            <span style="font-size: 9px; color: var(--text-secondary); margin-top: 4px;">16:9 종횡비 연동</span>
+          </div>
+        </div>
+
+        <div style="background: #0f172a; border-radius: 6px; padding: 6px 10px; font-size: 10px; color: var(--text-secondary); font-family: monospace; border-left: 3px solid var(--accent);">
+          V_FOV = 2 · arctan( tan(H_FOV / 2) · (H / W) )<br>
+          <span style="color: #38bdf8;">초점거리 f = (W/2) / tan(H_FOV/2) = <span id="vDispFocalLength">1108.5 px</span></span>
+        </div>
+      </div>
+
+      <!-- 3. 키프레임 목록 & 3단계 연동 & CSV 내보내기 -->
+      <div class="card">
+        <div class="card-title">
+          <span>📌 동선 키프레임 목록 (<span id="vKfCount">0</span>)</span>
+          <div style="display: flex; gap: 4px;">
+            <button class="btn-sm btn-accent" onclick="applyVideoPathToStep3()" title="이 키프레임을 3단계 렌더링에 즉시 적용">
+              ⚡ 3단계 렌더링 적용
+            </button>
+            <button class="btn-sm btn-success" onclick="exportVideoPathCsv()">CSV 다운로드</button>
+            <button class="btn-sm btn-secondary" onclick="clearVideoKeyframes()">비우기</button>
+          </div>
+        </div>
+
+        <div class="kf-table-wrap">
+          <table class="v-kf-table">
+            <thead>
+              <tr><th>프레임</th><th>시간(초)</th><th>방위각</th><th>고도각</th><th>X</th><th>Y</th></tr>
+            </thead>
+            <tbody id="vKfTableBody">
+              <tr><td colspan="6" style="text-align:center; color:#64748b; padding: 12px;">화면을 클릭하고 [K]를 누르면 저장됩니다.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="border-color:rgba(34,197,94,0.5);">
+        <div class="card-title">
+          <span>🧠 SAM 2 영상 대상 추적</span>
+          <span id="sam2ServerStatus" class="status-tag">서버 연결 필요</span>
+        </div>
+        <div style="font-size:10px; color:var(--text-secondary); line-height:1.55; margin-bottom:8px;">
+          먼저 서버 창을 열어 두세요 (Windows: start_sam2_server.bat 더블클릭, macOS: README.md의 명령). 연결 후 영상을 프레임 이미지로 준비하고, 새 대상 안쪽을 양성 클릭해 마스크를 확인한 다음 추적을 시작합니다. 보정 모드에서 Shift+클릭하면 배경 제외 지점으로 추가됩니다.
+          클릭 좌표는 화면 픽셀 기준이며, 추적 신뢰도는 SAM 2 마스크 로짓에서 계산한 참고 점수입니다.
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+          <button id="btnSam2Connect" class="btn-sm btn-secondary" onclick="connectSam2Server()">SAM 2 서버 연결</button>
+          <button id="btnSam2Prepare" class="btn-sm btn-accent" onclick="prepareSam2Video()" disabled>영상 프레임 준비</button>
+          <input id="sam2TargetName" type="text" maxlength="80" placeholder="대상 이름 (예: helicopter)"
+            style="background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:4px;padding:5px 7px;font-size:11px;flex:1;min-width:140px;">
+          <button id="btnSam2Seed" class="btn-sm btn-success" onclick="setSam2InputMode('seed')" disabled>새 대상 지정</button>
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+          <select id="sam2TargetSelect" onchange="selectSam2Target(this.value)"
+            style="background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:4px;padding:5px 7px;font-size:11px;min-width:150px;" disabled>
+            <option value="">대상 선택</option>
+          </select>
+          <button id="btnSam2Correct" class="btn-sm btn-secondary" onclick="setSam2InputMode('correct')" disabled>선택 대상 보정 클릭</button>
+          <button id="btnSam2Track" class="btn-sm btn-accent" onclick="startSam2Tracking()" disabled>선택 대상 추적 실행</button>
+          <button id="btnSam2Cancel" class="btn-sm btn-secondary" onclick="cancelSam2Tracking()" disabled>추적 취소</button>
+        </div>
+        <progress id="sam2Progress" max="100" value="0" style="width:100%;height:10px;"></progress>
+        <div id="sam2ProgressText" style="font-size:10px;color:var(--text-secondary);margin:4px 0 8px;">
+          서버에 연결한 뒤 영상 프레임을 준비하세요.
+        </div>
+        <div id="sam2FrameInfo" style="font-size:10px;color:#cbd5e1;margin-bottom:6px;">
+          선택 대상 프레임 정보를 표시합니다.
+        </div>
+        <div id="sam2TargetsList" style="font-size:10px;color:#94a3b8;">추적 대상이 없습니다.</div>
+        <div style="font-size:9px;color:#64748b;margin-top:6px;">
+          프레임, 바운딩 박스, 마스크 면적, 참고 신뢰도는 sam2_server.py 옆 sam2_tracker_data 폴더에 저장됩니다.
+          CSV의 프레임 번호는 0부터입니다. 방향 동선 CSV는 바운딩 박스 중심을 현재 화각으로 방위각·고도각으로 바꾼 것이며, 거리는 1.0 m로 고정됩니다.
+        </div>
+      </div>
+    </div>
+
+    <div id="panelStepMix" class="panel-section">
+      <div class="card">
+        <div class="card-title">
+          <span>🎚️ 시나리오 음원 등록 및 편집</span>
+          <span id="mixTrackCount" class="status-tag">0개 음원</span>
+        </div>
+        <div style="font-size:10px; color:var(--text-secondary); line-height:1.55; margin-bottom:8px;">
+          같은 음원을 여러 번 추가해 각각 다른 구간과 전달 방식으로 설정할 수 있습니다.
+          object는 음원별 동선 CSV를 사용하고, channel은 입력 채널 순서를 유지합니다(모노는 FL, 스테레오는 FL/FR).
+          채널을 지정하면 입력을 모노로 합쳐 해당 스피커로 보냅니다.
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+          <button class="btn-sm btn-accent" onclick="document.getElementById('mixAudioFiles').click()">음원 파일 추가</button>
+          <input id="mixAudioFiles" type="file" accept="audio/*,.wav,.mp3,.ogg,.m4a" multiple style="display:none;" onchange="addScenarioAudioFiles(event)">
+          <button class="btn-sm btn-secondary" onclick="document.getElementById('mixJsonFile').click()">설정 JSON 불러오기</button>
+          <input id="mixJsonFile" type="file" accept=".json,application/json" style="display:none;" onchange="loadScenarioJson(event)">
+          <button class="btn-sm btn-secondary" onclick="saveScenarioJson()">설정 JSON 저장</button>
+        </div>
+        <div id="mixTracksList">
+          <div style="text-align:center; color:#64748b; font-size:11px; padding:16px;">음원을 추가하세요.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>🕒 영상 프레임 타임라인</span>
+          <span id="mixCurrentFrame" class="status-tag">Frame 0</span>
+        </div>
+        <div id="mixTimelineRows" style="position:relative; cursor:pointer;" onclick="seekMixTimeline(event)">
+          <div id="mixTimelinePlayhead" class="mix-lane-playhead" style="left:72px;"></div>
+          <div style="font-size:9px; color:var(--text-secondary); display:flex; justify-content:space-between; margin:0 0 5px 78px;">
+            <span>0</span><span id="mixTimelineMid">—</span><span id="mixTimelineEnd">— frame</span>
+          </div>
+          <div id="mixTimelineTracks">
+            <div style="font-size:10px; color:#64748b; padding:8px;">음원을 등록하면 재생 구간이 표시됩니다.</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;">
+          <button id="btnPlayMixVideo" class="btn-sm btn-success" onclick="playScenarioWithVideo()">▶ 영상+음원 재생</button>
+          <button class="btn-sm btn-secondary" onclick="stopScenarioPlayback()">⏹ 정지</button>
+          <button id="btnRenderMix" class="btn-sm btn-accent" onclick="exportScenarioWav()">4채널 WAV 렌더링 / 저장</button>
+        </div>
+        <div id="mixRenderStatus" style="font-size:10px; color:var(--text-secondary); margin-top:8px;">
+          렌더링 결과 peak ≤ 1.0이 되도록 최종 합산 신호에 전체 게인을 적용합니다.
+        </div>
+      </div>
+    </div>
+
+    <!-- [3단계 탭 패널]: 궤적 기반 렌더링 제어 -->
+    <div id="panelStep3" class="panel-section active-panel">
+      <div class="card">
+        <div class="card-title">
+          <span>⚙️ [3단계] 동선 CSV 선택 및 렌더링 설정</span>
+          <span id="csvBadge" class="status-tag">동선 1</span>
+        </div>
+        
+        <div class="preset-grid">
+          <button id="pBtn1" class="btn-preset active" onclick="selectPreset('path_1')">
+            <span>동선 1: 원형 수평 회전</span>
+            <span class="preset-desc">360F · 12s · 거리 2m · 고도 0°</span>
+          </button>
+          <button id="pBtn2" class="btn-preset" onclick="selectPreset('path_2')">
+            <span>동선 2: 360° 공전</span>
+            <span class="preset-desc">360F · 12s · 거리 2m · 고도 0°</span>
+          </button>
+          <button id="pBtn3" class="btn-preset" onclick="selectPreset('path_3')">
+            <span>동선 3: 머리 위 헬기 비행</span>
+            <span class="preset-desc">고도 9.5°➔90.0°(정수리) · 4m~24m</span>
+          </button>
+          <button id="pBtn4" class="btn-preset" onclick="selectPreset('path_4')">
+            <span>동선 4: 45° 원거리 직선</span>
+            <span class="preset-desc">방위각 45° · 거리 2m ➔ 60m</span>
+          </button>
+        </div>
+
+        <div class="file-dropzone" onclick="document.getElementById('csvFileInput').click()">
+          <span>📄 사용자 지정 CSV 불러오기 (클릭 또는 드래그)</span>
+          <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="loadUserCsv(event)">
+        </div>
+
+        <!-- 3단계 오디오 내보내기 -->
+        <div style="margin-top: 10px; border-top: 1px solid #1e293b; padding-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 11px; color: var(--text-secondary);">
+            렌더링된 무손실 4채널 마스터 오디오
+          </div>
+          <button id="btnExportWav" class="btn-success" style="font-size: 11px;" onclick="export4ChannelWav()">
+            <span>💾</span> 4채널 WAV 내보내기
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- [4단계 탭 패널]: 실시간 청감 보정 (Perceptual Calibration) -->
+    <div id="panelStep4" class="panel-section">
+      <div class="card">
+        <div class="card-title">
+          <span>🛠️ [4단계] 실시간 청감 보정 (Perceptual Tuning)</span>
+          <button class="btn-secondary" style="font-size: 10px; padding: 3px 8px;" onclick="resetCalibration()">기본값 복원</button>
+        </div>
+        <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
+          슬라이더를 조절하면 <strong>재생 중인 소리에 실시간으로 즉시 반영</strong>됩니다.
+        </div>
+
+        <!-- 1. 방향 (Azimuth Offset) -->
+        <div class="calib-param-group">
+          <div class="calib-header">
+            <span>1. 방향 오프셋 (Azimuth Offset / Rotate)</span>
+            <span id="lblAzOffset" style="color: #38bdf8; font-family: monospace;">0.0°</span>
+          </div>
+          <input type="range" id="slAzOffset" class="calib-slider" min="-180" max="180" step="1" value="0" oninput="onCalibChange('azOffset', this.value)">
+          <div class="calib-desc">공간 음향 전체 방향을 회전(-180° ~ +180°)하여 청취 방향을 보정합니다.</div>
+        </div>
+
+        <!-- 2. 고도 (Elevation Scale) -->
+        <div class="calib-param-group">
+          <div class="calib-header">
+            <span>2. 고도 스케일 (Elevation Scale)</span>
+            <span id="lblElScale" style="color: #10b981; font-family: monospace;">1.00x</span>
+          </div>
+          <input type="range" id="slElScale" class="calib-slider" min="0" max="2" step="0.05" value="1.0" oninput="onCalibChange('elScale', this.value)">
+          <div class="calib-desc">머리 위 수직 고도감 및 천장 반사음을 강조하거나 축소(0.0x ~ 2.0x)합니다.</div>
+        </div>
+
+        <!-- 3. 거리 (Distance Rolloff Exponent) -->
+        <div class="calib-param-group">
+          <div class="calib-header">
+            <span>3. 거리 감쇄 지수 (Distance Rolloff)</span>
+            <span id="lblDistRolloff" style="color: #cbd5e1; font-family: monospace;">1.00 (역거리)</span>
+          </div>
+          <input type="range" id="slDistRolloff" class="calib-slider" min="0.2" max="2.0" step="0.05" value="1.0" oninput="onCalibChange('distRolloff', this.value)">
+          <div class="calib-desc">거리에 따른 음량 감쇄 급격도를 조절(0.2: 잔향실 ~ 2.0: 야외 광장)합니다.</div>
+        </div>
+
+        <!-- 4. 전후 밸런스 (Front / Back Bias) -->
+        <div class="calib-param-group">
+          <div class="calib-header">
+            <span>4. 전후 밸런스 (Front/Back Balance)</span>
+            <span id="lblFbBias" style="color: #f59e0b; font-family: monospace;">0.0 dB</span>
+          </div>
+          <input type="range" id="slFbBias" class="calib-slider" min="-6" max="6" step="0.5" value="0" oninput="onCalibChange('fbBias', this.value)">
+          <div class="calib-desc">전면 스피커(FL/FR)와 후면 스피커(RL/RR)의 상대 음압(-6dB ~ +6dB)을 보정합니다.</div>
+        </div>
+
+        <!-- 5. 상대속도 (Relative Speed Factor) -->
+        <div class="calib-param-group">
+          <div class="calib-header">
+            <span>5. 상대속도 (Relative Speed Factor)</span>
+            <span id="lblSpeedFactor" style="color: #ec4899; font-family: monospace;">1.00x</span>
+          </div>
+          <input type="range" id="slSpeedFactor" class="calib-slider" min="0.2" max="2.0" step="0.05" value="1.0" oninput="onCalibChange('speedFactor', this.value)">
+          <div class="calib-desc">객체의 이동 속도(0.2x ~ 2.0x) 및 음향 도플러 체감 속도를 실시간 조절합니다.</div>
+        </div>
+
+        <!-- 4단계 기능 3: 보정 설정 파일 저장 및 불러오기 -->
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <button class="btn-success" style="flex: 1; font-size: 11px;" onclick="exportCalibrationJson()">
+            <span>💾</span> 설정 파일 저장 (.json)
+          </button>
+          <button class="btn-secondary" style="flex: 1; font-size: 11px;" onclick="document.getElementById('calibFileInput').click()">
+            <span>📂</span> 설정 파일 불러오기
+          </button>
+          <input type="file" id="calibFileInput" accept=".json" style="display:none;" onchange="importCalibrationJson(event)">
+        </div>
+      </div>
+    </div>
+
+    <!-- [1단계 탭 패널]: 스피커 라우팅 & 볼륨 밸런스 -->
+    <div id="panelStep1" class="panel-section">
+      <div class="card">
+        <div class="card-title">
+          <span>🔀 [1단계] 스피커 라우팅 & 볼륨 밸런스</span>
+          <button class="btn-secondary" style="font-size: 10px; padding: 2px 6px;" onclick="resetRouting()">라우팅 복원</button>
+        </div>
+
+        <div style="font-size: 11px; margin-bottom: 8px; color: var(--text-secondary);">스피커별 할당 물리 출력 채널:</div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-bottom: 10px;">
+          <div style="background:#0f172a; padding:6px; border-radius:6px;">
+            <span style="font-size:10px; color:var(--fl-color); font-weight:700;">FL (-30°) ➔</span>
+            <select id="routeFL" style="background:#131d31; color:white; border:1px solid #334155; font-size:11px; border-radius:4px; padding:2px;" onchange="updateRouting()">
+              <option value="0" selected>CH 1</option><option value="1">CH 2</option><option value="2">CH 3</option><option value="3">CH 4</option>
+            </select>
+          </div>
+          <div style="background:#0f172a; padding:6px; border-radius:6px;">
+            <span style="font-size:10px; color:var(--fr-color); font-weight:700;">FR (+30°) ➔</span>
+            <select id="routeFR" style="background:#131d31; color:white; border:1px solid #334155; font-size:11px; border-radius:4px; padding:2px;" onchange="updateRouting()">
+              <option value="0">CH 1</option><option value="1" selected>CH 2</option><option value="2">CH 3</option><option value="3">CH 4</option>
+            </select>
+          </div>
+          <div style="background:#0f172a; padding:6px; border-radius:6px;">
+            <span style="font-size:10px; color:var(--rl-color); font-weight:700;">RL (-135°) ➔</span>
+            <select id="routeRL" style="background:#131d31; color:white; border:1px solid #334155; font-size:11px; border-radius:4px; padding:2px;" onchange="updateRouting()">
+              <option value="0">CH 1</option><option value="1">CH 2</option><option value="2" selected>CH 3</option><option value="3">CH 4</option>
+            </select>
+          </div>
+          <div style="background:#0f172a; padding:6px; border-radius:6px;">
+            <span style="font-size:10px; color:var(--rr-color); font-weight:700;">RR (+135°) ➔</span>
+            <select id="routeRR" style="background:#131d31; color:white; border:1px solid #334155; font-size:11px; border-radius:4px; padding:2px;" onchange="updateRouting()">
+              <option value="0">CH 1</option><option value="1">CH 2</option><option value="2">CH 3</option><option value="3" selected>CH 4</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 마스터 볼륨 -->
+        <div style="background:#0f172a; padding:8px 10px; border-radius:6px; margin-bottom: 8px;">
+          <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:700;">
+            <span style="color:var(--accent);">마스터 볼륨</span>
+            <span id="txtMasterVol" style="font-family:monospace;">100%</span>
+          </div>
+          <input type="range" id="slMasterVol" style="width:100%; margin-top:4px;" min="0" max="200" value="100" oninput="onMasterVolChange(this.value)">
+        </div>
+
+        <button class="btn-secondary" style="width:100%; font-size:11px; padding:7px;" onclick="runSeqTest()">
+          <span>🔄</span> 1단계: 4채널 스피커 순차 테스트 실행 (FL➔FR➔RL➔RR)
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// =============================================================================
+// 전역 데이터 모델 및 스피커 구성
+// =============================================================================
+const SPEAKERS = [
+  { id: 'FL', name: 'FL (전면 좌)',  azimuth: -30.0,  color: '#3b82f6', defaultCh: 0, assignedCh: 0, volume: 1.0, isMuted: false, isSolo: false, active: false },
+  { id: 'FR', name: 'Front Right',  azimuth:  30.0,  color: '#10b981', defaultCh: 1, assignedCh: 1, volume: 1.0, isMuted: false, isSolo: false, active: false },
+  { id: 'RL', name: 'Rear Left',    azimuth: -135.0, color: '#f59e0b', defaultCh: 2, assignedCh: 2, volume: 1.0, isMuted: false, isSolo: false, active: false },
+  { id: 'RR', name: 'Rear Right',   azimuth:  135.0, color: '#ec4899', defaultCh: 3, assignedCh: 3, volume: 1.0, isMuted: false, isSolo: false, active: false }
+];
+
+// 4단계 실시간 청감 보정 파라미터 상태
+const calib = {
+  azOffset: 0.0,        // 방향 회전 오프셋 (-180° ~ +180°)
+  elScale: 1.0,         // 고도 스케일 (0.0x ~ 2.0x)
+  distRolloff: 1.0,     // 거리 감쇄 지수 (0.2 ~ 2.0)
+  fbBias: 0.0,          // 전후 밸런스 dB (-6dB ~ +6dB)
+  speedFactor: 1.0,     // 상대속도 배율 (0.2x ~ 2.0x)
+  masterVol: 1.0        // 마스터 볼륨 (0.0 ~ 2.0)
+};
+
+let currentPresetKey = 'path_1';
+let currentPathData = (typeof window !== 'undefined' && window.PRESETS && window.PRESETS.path_1) ? window.PRESETS.path_1 : {
+  times: [0, 2, 4, 6, 8, 10, 12],
+  azimuths: [0, 45, 90, 180, -135, -90, -45],
+  elevations: [0, 0, 0, 0, 0, 0, 0],
+  distances: [2, 2, 2, 2, 2, 2, 2]
+};
+
+// 재생 상태 (48,000 샘플 = 1초)
+const SAMPLE_RATE = 48000;
+const mixState = {
+  tracks: [],
+  nextId: 1,
+  previewSource: null,
+  playingSource: null,
+  isRendering: false,
+  renderedBuffer: null,
+  peakBeforeLimit: 0,
+  appliedGain: 1,
+  limiterGain: 1,
+  syncVideo: false,
+  revision: 0
+};
+let isPlaying = false;
+let currentSamples = 0;
+let currentTime = 0.0;
+let playStartAudioTime = 0;
+let playStartSampleOffset = 0;
+let animReqId = null;
+let outputMode = 'downmix'; // 'downmix' | 'multichannel'
+let selectedAudioSource = 'moving'; // 'moving' | 'channel' | 'beep' | 'custom'
+
+// Web Audio API
+let audioCtx = null;
+let b64ChannelBuffer = null;
+let b64MovingBuffer = null;
+let customBuffer = null;
+let activeSourceNode = null;
+let speakerGainNodes = [null, null, null, null];
+let masterGainNode = null;
+let analyserNodes = [null, null, null, null];
+
+// =============================================================================
+// Web Audio 초기화 및 그래프 구성
+// =============================================================================
+function initAudio() {
+  if (!audioCtx) {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  rebuildGraph();
+}
+
+function rebuildGraph() {
+  if (!audioCtx) return;
+
+  const destChs = audioCtx.destination.maxChannelCount;
+  if (outputMode === 'multichannel' && destChs >= 4) {
+    audioCtx.destination.channelCount = 4;
+    audioCtx.destination.channelCountMode = 'explicit';
+    audioCtx.destination.channelInterpretation = 'discrete';
+  } else {
+    audioCtx.destination.channelCount = 2;
+    audioCtx.destination.channelCountMode = 'explicit';
+    audioCtx.destination.channelInterpretation = 'speakers';
+  }
+
+  masterGainNode = audioCtx.createGain();
+  masterGainNode.gain.setValueAtTime(calib.masterVol, audioCtx.currentTime);
+
+  for (let i = 0; i < 4; i++) {
+    speakerGainNodes[i] = audioCtx.createGain();
+    speakerGainNodes[i].gain.setValueAtTime(0, audioCtx.currentTime);
+    analyserNodes[i] = audioCtx.createAnalyser();
+    analyserNodes[i].fftSize = 256;
+  }
+
+  if (outputMode === 'multichannel' && destChs >= 4) {
+    const merger = audioCtx.createChannelMerger(4);
+    for (let i = 0; i < 4; i++) {
+      const assigned = SPEAKERS[i].assignedCh;
+      speakerGainNodes[i].connect(analyserNodes[i]);
+      analyserNodes[i].connect(merger, 0, assigned);
+    }
+    merger.connect(masterGainNode);
+    masterGainNode.connect(audioCtx.destination);
+  } else {
+    // 스테레오 다운믹스: FL/RL ➔ L (CH 0), FR/RR ➔ R (CH 1)
+    const merger = audioCtx.createChannelMerger(2);
+    speakerGainNodes[0].connect(analyserNodes[0]);
+    analyserNodes[0].connect(merger, 0, 0); // FL ➔ L
+
+    speakerGainNodes[1].connect(analyserNodes[1]);
+    analyserNodes[1].connect(merger, 0, 1); // FR ➔ R
+
+    speakerGainNodes[2].connect(analyserNodes[2]);
+    analyserNodes[2].connect(merger, 0, 0); // RL ➔ L
+
+    speakerGainNodes[3].connect(analyserNodes[3]);
+    analyserNodes[3].connect(merger, 0, 1); // RR ➔ R
+
+    merger.connect(masterGainNode);
+    masterGainNode.connect(audioCtx.destination);
+  }
+}
+
+// =============================================================================
+// [3단계 : 궤적 기반 렌더링 연산 핵심]
+// =============================================================================
+function computeGainsAtSample(sampleIdx, pathData = currentPathData, shouldLoop = true) {
+  const t = sampleIdx / SAMPLE_RATE;
+  const times = pathData.times;
+  const azs = pathData.azimuths;
+  const els = pathData.elevations;
+  const dists = pathData.distances;
+  const n = times.length;
+  const dur = times[n - 1];
+
+  let normT = shouldLoop ? t % (dur || 12) : Math.max(times[0], Math.min(dur, t));
+  let idx = 0;
+  for (let i = 0; i < n - 1; i++) {
+    if (normT >= times[i] && normT <= times[i + 1]) {
+      idx = i;
+      break;
+    }
+  }
+
+  const frac = (normT - times[idx]) / (times[idx + 1] - times[idx] || 1);
+  const rawAz = azs[idx] + frac * (((azs[idx + 1] - azs[idx] + 540) % 360) - 180);
+  const rawEl = els[idx] + frac * (els[idx + 1] - els[idx]);
+  const rawDist = dists[idx] + frac * (dists[idx + 1] - dists[idx]);
+
+  // 4단계 보정 파라미터 적용
+  let az = ((rawAz + calib.azOffset + 180) % 360 + 360) % 360 - 180;
+  let el = Math.max(0, Math.min(90, rawEl * calib.elScale));
+  let dist = Math.max(0.5, rawDist);
+
+  // 3. 2D VBAP 게인 계산 (스피커: FL -30°, FR +30°, RL -135°, RR +135°)
+  const gVbap = [0, 0, 0, 0];
+  let sp1, sp2, th1, th2, th;
+  if (az >= -30 && az <= 30) {
+    sp1 = 0; sp2 = 1; th1 = -30; th2 = 30; th = az;
+  } else if (az > 30 && az <= 135) {
+    sp1 = 1; sp2 = 3; th1 = 30; th2 = 135; th = az;
+  } else if (az >= -135 && az < -30) {
+    sp1 = 2; sp2 = 0; th1 = -135; th2 = -30; th = az;
+  } else {
+    sp1 = 3; sp2 = 2; th1 = 135; th2 = 225; th = (az >= 0 ? az : az + 360);
+  }
+
+  const th1_r = th1 * Math.PI / 180, th2_r = th2 * Math.PI / 180, th_r = th * Math.PI / 180;
+  const denom = Math.sin(th2_r - th1_r);
+  let g1 = Math.max(0, Math.sin(th2_r - th_r) / denom);
+  let g2 = Math.max(0, Math.sin(th_r - th1_r) / denom);
+  const norm = Math.sqrt(g1 * g1 + g2 * g2);
+  if (norm > 1e-6) { g1 /= norm; g2 /= norm; }
+  gVbap[sp1] = g1;
+  gVbap[sp2] = g2;
+
+  // 거리 감쇄: A_dist = (ref_dist / dist) ^ distRolloff
+  const refDist = 2.0;
+  const dGain = Math.max(0.02, Math.pow(refDist / Math.max(refDist, dist), calib.distRolloff));
+
+  // 전후 밸런스 적용
+  const frontMult = Math.pow(10, calib.fbBias / 40.0);
+  const rearMult = Math.pow(10, -calib.fbBias / 40.0);
+
+  const finalGains = [
+    gVbap[0] * dGain * frontMult * SPEAKERS[0].volume,
+    gVbap[1] * dGain * frontMult * SPEAKERS[1].volume,
+    gVbap[2] * dGain * rearMult  * SPEAKERS[2].volume,
+    gVbap[3] * dGain * rearMult  * SPEAKERS[3].volume
+  ];
+  let visible = true;
+  if (pathData.visible && pathData.visible.length === n) {
+    const visibility = pathData.visible;
+    if (frac <= 1e-6) visible = visibility[idx] === 1;
+    else if (frac >= 1 - 1e-6) visible = visibility[idx + 1] === 1;
+    else visible = visibility[idx] === 1 && visibility[idx + 1] === 1;
+    if (!visible) finalGains.fill(0);
+  }
+
+  const horizDist = dist * Math.cos(el * Math.PI / 180);
+  const z = dist * Math.sin(el * Math.PI / 180);
+
+  return {
+    t,
+    frame: Math.round(t * 30),
+    az, el, dist, horizDist, z,
+    gVbap, dGain, finalGains, visible
+  };
+}
+
+// 실시간 렌더링 애니메이션 루프
+function scheduleAnimationLoop() {
+  if (animReqId === null) animReqId = requestAnimationFrame(animationLoop);
+}
+
+function animationLoop() {
+  animReqId = null;
+  if (!isPlaying && !SPEAKERS.some(speaker => speaker.active)) return;
+
+  const dur = currentPathData.times[currentPathData.times.length - 1];
+
+  if (isPlaying && audioCtx) {
+    const elapsedAudioTime = (audioCtx.currentTime - playStartAudioTime) * calib.speedFactor;
+    currentSamples = Math.floor((playStartSampleOffset + elapsedAudioTime * SAMPLE_RATE));
+    currentTime = currentSamples / SAMPLE_RATE;
+
+    if (currentTime >= dur) {
+      if (document.getElementById('chkLoop').checked) {
+        startPlaybackAtSample(0);
+      } else {
+        stopPlayback();
+        currentTime = dur;
+        currentSamples = Math.floor(dur * SAMPLE_RATE);
+      }
+    }
+
+    document.getElementById('timeSlider').value = currentTime;
+    document.getElementById('timeDisplay').innerText = `${currentTime.toFixed(2)} / ${dur.toFixed(2)}s`;
+
+    const calc = computeGainsAtSample(currentSamples);
+    for (let i = 0; i < 4; i++) {
+      if (speakerGainNodes[i]) {
+        speakerGainNodes[i].gain.setValueAtTime(calc.finalGains[i], audioCtx.currentTime);
+      }
+      SPEAKERS[i].active = calc.visible && (calc.gVbap[i] > 0.15);
+    }
+
+    document.getElementById('monSamples').innerText = `${currentSamples.toLocaleString()} / ${(dur * SAMPLE_RATE).toLocaleString()}`;
+    document.getElementById('monTime').innerText = `${currentTime.toFixed(3)} 초`;
+    document.getElementById('monFrame').innerText = `Frame ${calc.frame} / ${Math.round(dur * 30)}`;
+    document.getElementById('monDistEl').innerText = `${calc.dist.toFixed(1)}m | ${calc.el.toFixed(1)}°`;
+
+    ['FL', 'FR', 'RL', 'RR'].forEach((id, idx) => {
+      const g = calc.finalGains[idx];
+      const db = g > 1e-4 ? (20 * Math.log10(g)).toFixed(1) : '-∞';
+      document.getElementById('gainVal' + id).innerText = `${g.toFixed(2)} (${db >= 0 ? '+' : ''}${db} dB)`;
+    });
+  }
+
+  renderRadar();
+  updateVUMeters();
+  if (isPlaying || SPEAKERS.some(speaker => speaker.active)) scheduleAnimationLoop();
+}
+
+// 평면도 (Canvas) 시각화 렌더링
+const canvas = document.getElementById('radarCanvas');
+const ctx = canvas.getContext('2d');
+
+function renderRadar() {
+  const w = canvas.width, h = canvas.height;
+  const cx = w / 2, cy = h / 2;
+
+  const els = currentPathData.elevations;
+  const dists = currentPathData.distances;
+  const horizDists = dists.map((d, i) => d * Math.cos(els[i] * Math.PI / 180));
+  const maxHoriz = Math.max(4.0, ...horizDists);
+  const scale = (Math.min(cx, cy) - 45) / maxHoriz;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // 1. 방사선 & 동심원 거리 링
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1;
+  for (let deg = 0; deg < 360; deg += 30) {
+    const rad = deg * Math.PI / 180;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + (Math.min(cx, cy) - 20) * Math.sin(rad), cy - (Math.min(cx, cy) - 20) * Math.cos(rad));
+    ctx.stroke();
+  }
+
+  [1, 2, 5, 10, 20, 50].forEach(r => {
+    if (r * scale < Math.min(cx, cy) - 20) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * scale, 0, Math.PI * 2);
+      ctx.strokeStyle = '#27354f';
+      ctx.stroke();
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px monospace';
+      ctx.fillText(`${r}m`, cx + 6, cy - r * scale + 10);
+    }
+  });
+
+  // 2. 십자선
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx, 20); ctx.lineTo(cx, h - 20);
+  ctx.moveTo(20, cy); ctx.lineTo(w - 20, cy);
+  ctx.stroke();
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('▲ 정면 (Front 0° / +Y)', cx - 60, 16);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px sans-serif';
+  ctx.fillText('+ 우측 (+90° / +X)', w - 110, cy - 6);
+  ctx.fillText('- 좌측 (-90° / -X)', 8, cy - 6);
+  ctx.fillText('▼ 후면 (Rear ±180° / -Y)', cx - 60, h - 6);
+
+  // 3. 4개 스피커 마커
+  const spkR = Math.min(cx, cy) - 35;
+  SPEAKERS.forEach(spk => {
+    const rad = spk.azimuth * Math.PI / 180;
+    const sx = cx + spkR * Math.sin(rad);
+    const sy = cy - spkR * Math.cos(rad);
+
+    if (spk.active) {
+      const pR = 16 + ((Date.now() / 20) % 20);
+      ctx.beginPath();
+      ctx.arc(sx, sy, pR, 0, Math.PI * 2);
+      ctx.fillStyle = spk.color + '44';
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(sx, sy, 13, 0, Math.PI * 2);
+    ctx.fillStyle = spk.color;
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillText(spk.id, sx - (spk.id.length * 3), sy + 3);
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 10px sans-serif';
+    const alignR = Math.sin(rad) >= 0;
+    ctx.fillText(`${spk.id} [CH${spk.assignedCh + 1}]`, sx + (alignR ? 16 : -66), sy + 3);
+  });
+
+  // 4. 중앙 청취자 마커 & 정면 방향 콘
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.arc(cx, cy, 34, -Math.PI/2 - Math.PI/6, -Math.PI/2 + Math.PI/6);
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+  ctx.fillStyle = '#0f172a';
+  ctx.fill();
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.fillText('L', cx - 3, cy + 3.5);
+
+  // 5. 전체 궤적 선
+  const times = currentPathData.times;
+  const azs = currentPathData.azimuths;
+  const elsArr = currentPathData.elevations;
+  const distsArr = currentPathData.distances;
+
+  ctx.lineWidth = 2.5;
+  for (let i = 0; i < times.length - 1; i++) {
+    const el1 = elsArr[i] * calib.elScale, el2 = elsArr[i + 1] * calib.elScale;
+    const h1 = distsArr[i] * Math.cos(el1 * Math.PI / 180);
+    const h2 = distsArr[i + 1] * Math.cos(el2 * Math.PI / 180);
+    const rad1 = (azs[i] + calib.azOffset) * Math.PI / 180;
+    const rad2 = (azs[i + 1] + calib.azOffset) * Math.PI / 180;
+
+    const x1 = cx + h1 * scale * Math.sin(rad1);
+    const y1 = cy - h1 * scale * Math.cos(rad1);
+    const x2 = cx + h2 * scale * Math.sin(rad2);
+    const y2 = cy - h2 * scale * Math.cos(rad2);
+
+    const avgEl = (el1 + el2) / 2;
+    ctx.beginPath();
+    ctx.strokeStyle = getElevationColor(avgEl);
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  // 6. 재생 중 현재 위치 점
+  const calc = computeGainsAtSample(currentSamples);
+  const curRad = calc.az * Math.PI / 180;
+  const objX = cx + calc.horizDist * scale * Math.sin(curRad);
+  const objY = cy - calc.horizDist * scale * Math.cos(curRad);
+
+  const markerR = 6 + (calc.el / 90.0) * 8.0;
+  const elColor = getElevationColor(calc.el);
+
+  if (isPlaying) {
+    const waveR = markerR + ((Date.now() / 25) % 28);
+    ctx.beginPath();
+    ctx.arc(objX, objY, waveR, 0, Math.PI * 2);
+    ctx.strokeStyle = elColor.replace('rgb', 'rgba').replace(')', `, ${1 - waveR / 36})`);
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.arc(objX, objY, markerR, 0, Math.PI * 2);
+  ctx.fillStyle = elColor;
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.setLineDash([2, 3]);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(objX, objY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  document.getElementById('canvasStatusTag').innerText = 
+    `방위각:${calc.az.toFixed(1)}° | 고도:${calc.el.toFixed(1)}° | 수평거리:${calc.horizDist.toFixed(1)}m | 3D거리:${calc.dist.toFixed(1)}m`;
+}
+
+function getElevationColor(elDeg) {
+  const norm = Math.max(0, Math.min(1, elDeg / 90.0));
+  if (norm < 0.4) {
+    const f = norm / 0.4;
+    return `rgb(${Math.round(56 + f * (16 - 56))}, ${Math.round(189 + f * (185 - 189))}, ${Math.round(248 + f * (129 - 248))})`;
+  } else if (norm < 0.75) {
+    const f = (norm - 0.4) / 0.35;
+    return `rgb(${Math.round(16 + f * (245 - 16))}, ${Math.round(185 + f * (158 - 185))}, ${Math.round(129 + f * (11 - 129))})`;
+  } else {
+    const f = (norm - 0.75) / 0.25;
+    return `rgb(${Math.round(245 + f * (239 - 245))}, ${Math.round(158 + f * (68 - 158))}, ${Math.round(11 + f * (68 - 11))})`;
+  }
+}
+
+// 4채널 VU 미터 루프
+function updateVUMeters() {
+  const ids = ['FL', 'FR', 'RL', 'RR'];
+  const buf = new Uint8Array(128);
+
+  for (let i = 0; i < 4; i++) {
+    const fill = document.getElementById('meter' + ids[i]);
+    const txt = document.getElementById('txt' + ids[i]);
+    if (!analyserNodes[i] || !audioCtx) {
+      fill.style.height = '0%';
+      txt.innerText = '-∞ dB';
+      continue;
+    }
+    analyserNodes[i].getByteTimeDomainData(buf);
+    let sum = 0;
+    for (let j = 0; j < buf.length; j++) {
+      const v = (buf[j] - 128) / 128;
+      sum += v * v;
+    }
+    const rms = Math.sqrt(sum / buf.length);
+    const db = rms > 1e-4 ? 20 * Math.log10(rms) : -80;
+    const pct = Math.max(0, Math.min(100, ((db + 50) / 50) * 100));
+    fill.style.height = pct + '%';
+    txt.innerText = db > -75 ? `${db.toFixed(1)} dB` : '-∞ dB';
+  }
+}
+
+// 재생 / 정지 제어
+function togglePlayPause() {
+  if (isPlaying) pausePlayback();
+  else startPlaybackAtSample(currentSamples);
+}
+
+function startPlaybackAtSample(sampleOffset) {
+  if (mixState.playingSource) stopScenarioPlayback();
+  stopScenarioPreview();
+  initAudio();
+  if (activeSourceNode) {
+    try { activeSourceNode.stop(); } catch(e) {}
+  }
+
+  playStartAudioTime = audioCtx.currentTime;
+  playStartSampleOffset = sampleOffset;
+  isPlaying = true;
+
+  document.getElementById('btnPlayPause').classList.remove('btn-success');
+  document.getElementById('btnPlayPause').classList.add('btn-secondary');
+  document.getElementById('btnPlayPause').innerHTML = '<span id="playIcon">⏸</span> 일시정지';
+
+  let targetBuffer = b64MovingBuffer || b64ChannelBuffer;
+  if (selectedAudioSource === 'channel' && b64ChannelBuffer) targetBuffer = b64ChannelBuffer;
+  else if (selectedAudioSource === 'custom' && customBuffer) targetBuffer = customBuffer;
+
+  if (targetBuffer) {
+    activeSourceNode = audioCtx.createBufferSource();
+    activeSourceNode.buffer = targetBuffer;
+    activeSourceNode.loop = document.getElementById('chkLoop').checked;
+    activeSourceNode.playbackRate.value = calib.speedFactor;
+
+    for (let i = 0; i < 4; i++) {
+      activeSourceNode.connect(speakerGainNodes[i]);
+    }
+    const offsetSec = (sampleOffset / SAMPLE_RATE) % targetBuffer.duration;
+    activeSourceNode.start(0, offsetSec);
+  } else {
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = 130;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 600;
+    osc.connect(filter);
+    for (let i = 0; i < 4; i++) filter.connect(speakerGainNodes[i]);
+    osc.start();
+    activeSourceNode = osc;
+  }
+  scheduleAnimationLoop();
+}
+
+function pausePlayback() {
+  if (isPlaying) {
+    isPlaying = false;
+    if (activeSourceNode) {
+      try { activeSourceNode.stop(); } catch(e) {}
+      activeSourceNode = null;
+    }
+    document.getElementById('btnPlayPause').classList.add('btn-success');
+    document.getElementById('btnPlayPause').classList.remove('btn-secondary');
+    document.getElementById('btnPlayPause').innerHTML = '<span id="playIcon">▶</span> 재생';
+  }
+}
+
+function stopPlayback() {
+  pausePlayback();
+  currentSamples = 0;
+  currentTime = 0.0;
+  document.getElementById('timeSlider').value = 0;
+  const dur = currentPathData.times[currentPathData.times.length - 1];
+  document.getElementById('timeDisplay').innerText = `0.00 / ${dur.toFixed(2)}s`;
+  renderRadar();
+}
+
+function onTimeSeek(secVal) {
+  currentTime = parseFloat(secVal);
+  currentSamples = Math.floor(currentTime * SAMPLE_RATE);
+  if (isPlaying) {
+    startPlaybackAtSample(currentSamples);
+  } else {
+    renderRadar();
+  }
+}
+
+// 4단계 청감 보정 이벤트
+function onCalibChange(param, val) {
+  calib[param] = parseFloat(val);
+  invalidateScenarioRender();
+
+  if (param === 'azOffset') {
+    document.getElementById('lblAzOffset').innerText = `${calib.azOffset >= 0 ? '+' : ''}${calib.azOffset.toFixed(1)}°`;
+  } else if (param === 'elScale') {
+    document.getElementById('lblElScale').innerText = `${calib.elScale.toFixed(2)}x`;
+  } else if (param === 'distRolloff') {
+    document.getElementById('lblDistRolloff').innerText = `${calib.distRolloff.toFixed(2)}`;
+  } else if (param === 'fbBias') {
+    document.getElementById('lblFbBias').innerText = `${calib.fbBias >= 0 ? '+' : ''}${calib.fbBias.toFixed(1)} dB`;
+  } else if (param === 'speedFactor') {
+    document.getElementById('lblSpeedFactor').innerText = `${calib.speedFactor.toFixed(2)}x`;
+    if (activeSourceNode && activeSourceNode.playbackRate) {
+      activeSourceNode.playbackRate.setValueAtTime(calib.speedFactor, audioCtx.currentTime);
+    }
+  }
+
+  if (!isPlaying) renderRadar();
+}
+
+function resetCalibration() {
+  calib.azOffset = 0.0;
+  calib.elScale = 1.0;
+  calib.distRolloff = 1.0;
+  calib.fbBias = 0.0;
+  calib.speedFactor = 1.0;
+  invalidateScenarioRender();
+
+  document.getElementById('slAzOffset').value = 0;
+  document.getElementById('slElScale').value = 1.0;
+  document.getElementById('slDistRolloff').value = 1.0;
+  document.getElementById('slFbBias').value = 0;
+  document.getElementById('slSpeedFactor').value = 1.0;
+
+  document.getElementById('lblAzOffset').innerText = '0.0°';
+  document.getElementById('lblElScale').innerText = '1.00x';
+  document.getElementById('lblDistRolloff').innerText = '1.00';
+  document.getElementById('lblFbBias').innerText = '0.0 dB';
+  document.getElementById('lblSpeedFactor').innerText = '1.00x';
+
+  if (activeSourceNode && activeSourceNode.playbackRate) {
+    activeSourceNode.playbackRate.setValueAtTime(1.0, audioCtx ? audioCtx.currentTime : 0);
+  }
+}
+
+function exportCalibrationJson() {
+  const exportData = {
+    version: '1.0',
+    timestamp: new Date().toISOString(),
+    preset: currentPresetKey,
+    calibration: {
+      azimuth_offset_deg: calib.azOffset,
+      elevation_scale: calib.elScale,
+      distance_rolloff: calib.distRolloff,
+      front_back_bias_db: calib.fbBias,
+      relative_speed_factor: calib.speedFactor,
+      master_volume: calib.masterVol
+    },
+    speaker_routing: {
+      FL: SPEAKERS[0].assignedCh,
+      FR: SPEAKERS[1].assignedCh,
+      RL: SPEAKERS[2].assignedCh,
+      RR: SPEAKERS[3].assignedCh
+    },
+    output_mode: outputMode
+  };
+
+  const jsonStr = JSON.stringify(exportData, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `xr_calibration_settings_${currentPresetKey}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  alert('청감 보정 설정 파일(.json) 저장이 완료되었습니다!');
+}
+
+function importCalibrationJson(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.calibration) {
+        const c = data.calibration;
+        onCalibChange('azOffset', c.azimuth_offset_deg || 0);
+        onCalibChange('elScale', c.elevation_scale || 1.0);
+        onCalibChange('distRolloff', c.distance_rolloff || 1.0);
+        onCalibChange('fbBias', c.front_back_bias_db || 0);
+        onCalibChange('speedFactor', c.relative_speed_factor || 1.0);
+
+        document.getElementById('slAzOffset').value = calib.azOffset;
+        document.getElementById('slElScale').value = calib.elScale;
+        document.getElementById('slDistRolloff').value = calib.distRolloff;
+        document.getElementById('slFbBias').value = calib.fbBias;
+        document.getElementById('slSpeedFactor').value = calib.speedFactor;
+      }
+      if (data.speaker_routing) {
+        SPEAKERS[0].assignedCh = data.speaker_routing.FL ?? 0;
+        SPEAKERS[1].assignedCh = data.speaker_routing.FR ?? 1;
+        SPEAKERS[2].assignedCh = data.speaker_routing.RL ?? 2;
+        SPEAKERS[3].assignedCh = data.speaker_routing.RR ?? 3;
+        document.getElementById('routeFL').value = SPEAKERS[0].assignedCh;
+        document.getElementById('routeFR').value = SPEAKERS[1].assignedCh;
+        document.getElementById('routeRL').value = SPEAKERS[2].assignedCh;
+        document.getElementById('routeRR').value = SPEAKERS[3].assignedCh;
+        invalidateScenarioRender();
+        rebuildGraph();
+      }
+      alert(`보정 설정 파일 '${file.name}'을 성공적으로 불러와 적용하였습니다!`);
+    } catch(err) {
+      alert('설정 파일 로드 오류: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// 4채널 WAV 마스터 내보내기
+async function export4ChannelWav() {
+  const btn = document.getElementById('btnExportWav');
+  btn.innerText = '렌더링 연산 중...';
+  btn.disabled = true;
+
+  try {
+    const dur = currentPathData.times[currentPathData.times.length - 1];
+    const totalSamples = Math.ceil(dur * SAMPLE_RATE);
+    const offlineCtx = new OfflineAudioContext(4, totalSamples, SAMPLE_RATE);
+
+    let src;
+    const targetBuffer = b64MovingBuffer || b64ChannelBuffer;
+    if (targetBuffer) {
+      src = offlineCtx.createBufferSource();
+      src.buffer = targetBuffer;
+      src.playbackRate.value = calib.speedFactor;
+    } else {
+      src = offlineCtx.createOscillator();
+      src.type = 'sawtooth';
+      src.frequency.value = 130;
+    }
+
+    const gains = [];
+    const merger = offlineCtx.createChannelMerger(4);
+    for (let i = 0; i < 4; i++) {
+      const g = offlineCtx.createGain();
+      gains.push(g);
+      src.connect(g);
+      g.connect(merger, 0, SPEAKERS[i].assignedCh);
+    }
+    merger.connect(offlineCtx.destination);
+
+    const blockSamples = Math.floor(0.02 * SAMPLE_RATE);
+    for (let s = 0; s < totalSamples; s += blockSamples) {
+      const calc = computeGainsAtSample(s);
+      const t = s / SAMPLE_RATE;
+      for (let ch = 0; ch < 4; ch++) {
+        gains[ch].gain.setValueAtTime(calc.finalGains[ch] * calib.masterVol, t);
+      }
+    }
+
+    src.start(0);
+    const rendered = await offlineCtx.startRendering();
+
+    const wavBlob = encode4ChWavBlob(rendered);
+    const url = URL.createObjectURL(wavBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `spatial_4ch_${currentPresetKey}.wav`;
+    a.click();
+    URL.revokeObjectURL(url);
+    alert('4채널 마스터 WAV 파일 내보내기가 완료되었습니다!');
+  } catch(e) {
+    alert('렌더링 오류: ' + e.message);
+  } finally {
+    btn.innerHTML = '<span>💾</span> 4채널 WAV 내보내기';
+    btn.disabled = false;
+  }
+}
+
+function encode4ChWavBlob(buf) {
+  const numCh = 4, sr = buf.sampleRate, numSamples = buf.length;
+  const blockAlign = numCh * 2, byteRate = sr * blockAlign, dataSize = numSamples * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  function writeStr(offset, s) { for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i)); }
+  writeStr(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeStr(8, 'WAVE');
+  writeStr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+  view.setUint16(22, numCh, true); view.setUint32(24, sr, true); view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true); view.setUint16(34, 16, true); writeStr(36, 'data'); view.setUint32(40, dataSize, true);
+
+  const chs = [buf.getChannelData(0), buf.getChannelData(1), buf.getChannelData(2), buf.getChannelData(3)];
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    for (let c = 0; c < 4; c++) {
+      let v = Math.max(-1, Math.min(1, chs[c][i]));
+      view.setInt16(offset, v < 0 ? v * 0x8000 : v * 0x7FFF, true);
+      offset += 2;
+    }
+  }
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+// =============================================================================
+// Scenario-based multi-source 4-channel renderer
+// =============================================================================
+function mixFrameCount() {
+  return Math.max(1, Number.isFinite(vState.totalFrames) ? vState.totalFrames : 750);
+}
+
+function mixDurationSeconds() {
+  if (vVideo.readyState >= 1 && Number.isFinite(vState.duration) && vState.duration > 0) return vState.duration;
+  const endFrame = mixState.tracks.reduce((max, track) => Math.max(max, track.endFrame), 1);
+  return (endFrame + 1) / vState.fps;
+}
+
+function mixTypeColor(type) {
+  return { DX: '#38bdf8', FX: '#f59e0b', MX: '#a78bfa' }[type] || '#38bdf8';
+}
+
+function escapeMixHtml(value) {
+  return String(value).replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
+}
+
+function invalidateScenarioRender() {
+  mixState.revision++;
+  mixState.renderedBuffer = null;
+  mixState.peakBeforeLimit = 0;
+  mixState.appliedGain = 1;
+  mixState.limiterGain = 1;
+  if (mixState.playingSource) stopScenarioPlayback();
+}
+
+function renderMixTracks() {
+  const list = document.getElementById('mixTracksList');
+  document.getElementById('mixTrackCount').textContent = `${mixState.tracks.length}개 음원`;
+  if (!mixState.tracks.length) {
+    list.innerHTML = '<div style="text-align:center; color:#64748b; font-size:11px; padding:16px;">음원을 추가하세요.</div>';
+    renderMixTimeline();
+    return;
+  }
+
+  const maxFrame = mixFrameCount();
+  list.innerHTML = mixState.tracks.map((track, index) => {
+    const channelOptions = [
+      ['auto', '자동 채널 매핑'],
+      ['0', 'FL / CH 1'],
+      ['1', 'FR / CH 2'],
+      ['2', 'RL / CH 3'],
+      ['3', 'RR / CH 4']
+    ].map(([value, label]) => `<option value="${value}" ${String(track.channelRoute) === value ? 'selected' : ''}>${label}</option>`).join('');
+    const pathStatus = track.pathData
+      ? `동선: ${escapeMixHtml(track.pathName || 'CSV')} (${track.pathData.times.length}점)`
+      : '동선 CSV가 필요합니다.';
+    const bufferStatus = track.buffer
+      ? `${track.buffer.numberOfChannels}ch · ${track.buffer.duration.toFixed(2)}초`
+      : '음원 파일을 다시 선택해 연결하세요.';
+    return `
+      <div class="mix-track-card" style="border-left-color:${mixTypeColor(track.type)}">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+          <div style="min-width:0; font-size:11px; font-weight:700; overflow-wrap:anywhere;">
+            ${index + 1}. ${escapeMixHtml(track.fileName)}
+            <div style="font-size:9px; color:${track.buffer ? '#94a3b8' : '#f87171'}; font-weight:400;">${bufferStatus}</div>
+          </div>
+          <div style="display:flex; gap:4px; flex-shrink:0;">
+            <button class="btn-sm btn-success" onclick="previewScenarioTrack(${track.id})">▶ 미리듣기</button>
+            <button class="btn-sm btn-secondary" onclick="removeScenarioTrack(${track.id})">삭제</button>
+          </div>
+        </div>
+        <div class="mix-track-grid">
+          <label>유형
+            <select onchange="updateScenarioTrack(${track.id},'type',this.value)">
+              <option value="DX" ${track.type === 'DX' ? 'selected' : ''}>DX · 대사</option>
+              <option value="FX" ${track.type === 'FX' ? 'selected' : ''}>FX · 효과음</option>
+              <option value="MX" ${track.type === 'MX' ? 'selected' : ''}>MX · 음악</option>
+            </select>
+          </label>
+          <label>전달 방식
+            <select onchange="updateScenarioTrack(${track.id},'delivery',this.value)">
+              <option value="object" ${track.delivery === 'object' ? 'selected' : ''}>object · 동선 패닝</option>
+              <option value="channel" ${track.delivery === 'channel' ? 'selected' : ''}>channel · 채널 직접 매핑</option>
+            </select>
+          </label>
+          ${track.delivery === 'channel' ? `
+          <label>채널 처리
+            <select onchange="updateScenarioTrack(${track.id},'channelRoute',this.value)">${channelOptions}</select>
+          </label>` : `
+          <label>object 동선 CSV
+            <input id="mixPathFile-${track.id}" type="file" accept=".csv,text/csv" onchange="loadScenarioPathCsv(${track.id},this.files[0])">
+          </label>
+          <div style="grid-column:1 / -1; font-size:9px; color:${track.pathData ? '#34d399' : '#fbbf24'};">${pathStatus}</div>`}
+          <label>시작 프레임 (포함)
+            <div style="display:flex; gap:4px;">
+              <input id="mixStart-${track.id}" type="number" min="0" max="${maxFrame}" value="${track.startFrame}" onchange="updateScenarioTrackFrame(${track.id},'start',this.value)">
+              <button class="btn-sm btn-secondary" onclick="setScenarioTrackFrame(${track.id},'start')">현재 프레임을 시작</button>
+            </div>
+          </label>
+          <label>끝 프레임 (포함)
+            <div style="display:flex; gap:4px;">
+              <input id="mixEnd-${track.id}" type="number" min="0" max="${maxFrame}" value="${track.endFrame}" onchange="updateScenarioTrackFrame(${track.id},'end',this.value)">
+              <button class="btn-sm btn-secondary" onclick="setScenarioTrackFrame(${track.id},'end')">현재 프레임을 끝</button>
+            </div>
+          </label>
+        </div>
+      </div>
+    `;
+  }).join('');
+  renderMixTimeline();
+}
+
+function renderMixTimeline() {
+  const rows = document.getElementById('mixTimelineTracks');
+  const maxFrame = mixFrameCount();
+  document.getElementById('mixTimelineMid').textContent = `${Math.round(maxFrame / 2)}`;
+  document.getElementById('mixTimelineEnd').textContent = `${maxFrame} frame`;
+  if (!mixState.tracks.length) {
+    rows.innerHTML = '<div style="font-size:10px; color:#64748b; padding:8px;">음원을 등록하면 재생 구간이 표시됩니다.</div>';
+    updateMixTimelinePlayhead();
+    return;
+  }
+  rows.innerHTML = mixState.tracks.map(track => {
+    const left = Math.max(0, Math.min(100, track.startFrame / maxFrame * 100));
+    const right = Math.max(left, Math.min(100, (track.endFrame + 1) / maxFrame * 100));
+    return `<div class="mix-lane">
+      <span title="${escapeMixHtml(track.fileName)}">${escapeMixHtml(track.type)} ${escapeMixHtml(track.fileName)}</span>
+      <div class="mix-lane-bar">
+        <div class="mix-lane-fill" style="left:${left}%; width:${Math.max(0.3, right - left)}%; background:${mixTypeColor(track.type)};"></div>
+      </div>
+    </div>`;
+  }).join('');
+  updateMixTimelinePlayhead();
+}
+
+function updateMixTimelinePlayhead() {
+  const maxFrame = mixFrameCount();
+  const frame = Math.max(0, Math.min(maxFrame, vState.currentFrame));
+  const container = document.getElementById('mixTimelineRows');
+  const playhead = document.getElementById('mixTimelinePlayhead');
+  if (!container || !playhead) return;
+  const width = Math.max(72, container.clientWidth);
+  const x = 78 + (width - 78) * frame / maxFrame;
+  playhead.style.left = `${x}px`;
+  const label = document.getElementById('mixCurrentFrame');
+  if (label) label.textContent = `Frame ${frame} / ${maxFrame}`;
+}
+
+function seekMixTimeline(event) {
+  const bar = document.querySelector('.mix-lane-bar');
+  if (!bar) return;
+  const rect = bar.getBoundingClientRect();
+  const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+  seekVideoFrame(Math.round(fraction * mixFrameCount()));
+}
+
+function updateScenarioTrack(id, key, value) {
+  const track = mixState.tracks.find(item => item.id === id);
+  if (!track) return;
+  if (key === 'type' && ['DX', 'FX', 'MX'].includes(value)) track.type = value;
+  else if (key === 'delivery' && ['object', 'channel'].includes(value)) track.delivery = value;
+  else if (key === 'channelRoute' && ['auto', '0', '1', '2', '3'].includes(value)) track.channelRoute = value;
+  invalidateScenarioRender();
+  renderMixTracks();
+}
+
+function updateScenarioTrackFrame(id, key, value) {
+  const track = mixState.tracks.find(item => item.id === id);
+  if (!track) return;
+  const frame = Number(value);
+  const maxFrame = mixFrameCount();
+  if (!Number.isInteger(frame) || frame < 0 || frame > maxFrame) {
+    alert(`프레임은 0부터 ${maxFrame} 사이의 정수로 입력하세요.`);
+    renderMixTracks();
+    return;
+  }
+  const start = key === 'start' ? frame : track.startFrame;
+  const end = key === 'end' ? frame : track.endFrame;
+  if (end < start) {
+    alert("끝 프레임은 시작 프레임보다 작을 수 없습니다.");
+    renderMixTracks();
+    return;
+  }
+  track.startFrame = start;
+  track.endFrame = end;
+  invalidateScenarioRender();
+  renderMixTracks();
+}
+
+function setScenarioTrackFrame(id, key) {
+  updateScenarioTrackFrame(id, key, vState.currentFrame);
+}
+
+function updateMixTrackFrameBounds() {
+  const maxFrame = mixFrameCount();
+  let changed = false;
+  mixState.tracks.forEach(track => {
+    const start = Math.min(track.startFrame, Math.max(0, maxFrame - 1));
+    const end = Math.max(start, Math.min(track.endFrame, maxFrame));
+    if (start !== track.startFrame || end !== track.endFrame) {
+      track.startFrame = start;
+      track.endFrame = end;
+      changed = true;
+    }
+  });
+  if (changed) invalidateScenarioRender();
+  renderMixTracks();
+}
+
+async function addScenarioAudioFiles(event) {
+  const files = Array.from(event.target.files || []);
+  event.target.value = '';
+  if (!files.length) return;
+  initAudio();
+  let added = 0;
+  for (const file of files) {
+    try {
+      const buffer = await audioCtx.decodeAudioData(await file.arrayBuffer());
+      const pending = mixState.tracks.find(track => track.fileName === file.name && !track.buffer);
+      if (pending) {
+        pending.buffer = buffer;
+      } else {
+        mixState.tracks.push({
+          id: mixState.nextId++,
+          fileName: file.name,
+          buffer,
+          type: 'DX',
+          delivery: 'object',
+          channelRoute: 'auto',
+          startFrame: Math.min(vState.currentFrame, mixFrameCount() - 1),
+          endFrame: mixFrameCount(),
+          pathData: null,
+          pathName: ''
+        });
+      }
+      added++;
+    } catch (error) {
+      alert(`'${file.name}' 음원 디코딩 실패: ${error.message}`);
+    }
+  }
+  if (added) {
+    invalidateScenarioRender();
+    renderMixTracks();
+    document.getElementById('mixRenderStatus').textContent = `${added}개 음원을 등록했습니다. 같은 파일을 다시 선택해 별도 트랙으로 추가할 수 있습니다.`;
+  }
+}
+
+function previewScenarioTrack(id) {
+  const track = mixState.tracks.find(item => item.id === id);
+  if (!track || !track.buffer) {
+    alert("먼저 해당 음원 파일을 선택해 연결하세요.");
+    return;
+  }
+  if (beeState.playingTrial) endBeeTrial();
+  if (isPlaying) stopPlayback();
+  initAudio();
+  stopScenarioPlayback();
+  stopScenarioPreview();
+  const source = audioCtx.createBufferSource();
+  source.buffer = track.buffer;
+  source.connect(audioCtx.destination);
+  source.onended = () => {
+    if (mixState.previewSource === source) mixState.previewSource = null;
+  };
+  mixState.previewSource = source;
+  source.start();
+}
+
+function stopScenarioPreview() {
+  if (mixState.previewSource) {
+    try { mixState.previewSource.stop(); } catch (error) {}
+    mixState.previewSource = null;
+  }
+}
+
+function removeScenarioTrack(id) {
+  stopScenarioPreview();
+  mixState.tracks = mixState.tracks.filter(track => track.id !== id);
+  invalidateScenarioRender();
+  renderMixTracks();
+}
+
+function parseScenarioPathCsv(text) {
+  const lines = text.replace(/^\uFEFF/, '').trim().split(/\r?\n/);
+  if (lines.length < 3) throw new Error("동선 CSV에는 머리글과 최소 2개의 데이터 행이 필요합니다.");
+  const headers = lines[0].toLowerCase().split(',').map(item => item.trim());
+  const indexOf = names => names.map(name => headers.indexOf(name)).find(index => index >= 0);
+  const timeIndex = indexOf(['time_s', 'time']);
+  const frameIndex = indexOf(['frame', 'frame_idx']);
+  const azIndex = indexOf(['azimuth_deg', 'azimuth', 'az']);
+  const elIndex = indexOf(['elevation_deg', 'elevation', 'el']);
+  const distIndex = indexOf(['distance_m', 'distance', 'dist']);
+  const visibleIndex = headers.indexOf('visible');
+  if (azIndex === undefined) throw new Error("CSV에 azimuth_deg 열이 없습니다.");
+  const rows = [];
+  lines.slice(1).forEach((line, i) => {
+    if (!line.trim()) return;
+    const columns = line.split(',').map(item => item.trim());
+    const time = timeIndex !== undefined ? Number(columns[timeIndex]) :
+      (frameIndex !== undefined ? Number(columns[frameIndex]) / vState.fps : i / vState.fps);
+    const azimuth = Number(columns[azIndex]);
+    if (!Number.isFinite(time) || !Number.isFinite(azimuth)) {
+      throw new Error(`CSV ${i + 2}행의 시간 또는 방위각이 숫자가 아닙니다.`);
+    }
+    rows.push({
+      time,
+      azimuth,
+      elevation: elIndex !== undefined && Number.isFinite(Number(columns[elIndex])) ? Number(columns[elIndex]) : 0,
+      distance: distIndex !== undefined && Number.isFinite(Number(columns[distIndex])) ? Number(columns[distIndex]) : 2,
+      visible: visibleIndex < 0 || Number(columns[visibleIndex]) === 1 ? 1 : 0
+    });
+  });
+  rows.sort((a, b) => a.time - b.time);
+  if (rows.length < 2) throw new Error("유효한 동선 데이터가 최소 2개 필요합니다.");
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i].time <= rows[i - 1].time) throw new Error("동선 CSV의 시간은 중복 없이 오름차순이어야 합니다.");
+  }
+  return {
+    times: rows.map(row => row.time),
+    azimuths: rows.map(row => row.azimuth),
+    elevations: rows.map(row => row.elevation),
+    distances: rows.map(row => row.distance),
+    visible: rows.map(row => row.visible)
+  };
+}
+
+async function loadScenarioPathCsv(id, file) {
+  if (!file) return;
+  const track = mixState.tracks.find(item => item.id === id);
+  if (!track) return;
+  try {
+    track.pathData = parseScenarioPathCsv(await file.text());
+    track.pathName = file.name;
+    invalidateScenarioRender();
+    renderMixTracks();
+  } catch (error) {
+    alert(`'${file.name}' 동선 CSV 오류: ${error.message}`);
+    renderMixTracks();
+  }
+}
+
+function validateScenarioPath(path) {
+  if (!path || !Array.isArray(path.times) || path.times.length < 2) throw new Error("동선 데이터에 2개 이상의 프레임이 필요합니다.");
+  const keys = ['azimuths', 'elevations', 'distances'];
+  keys.forEach(key => {
+    if (!Array.isArray(path[key]) || path[key].length !== path.times.length || path[key].some(value => !Number.isFinite(Number(value)))) {
+      throw new Error(`동선 ${key} 데이터가 올바르지 않습니다.`);
+    }
+  });
+  if (path.visible && (!Array.isArray(path.visible) || path.visible.length !== path.times.length ||
+      path.visible.some(value => value !== 0 && value !== 1))) {
+    throw new Error("동선 visible 값은 각 프레임마다 0 또는 1이어야 합니다.");
+  }
+  for (let i = 0; i < path.times.length; i++) {
+    if (!Number.isFinite(Number(path.times[i])) || (i > 0 && Number(path.times[i]) <= Number(path.times[i - 1]))) {
+      throw new Error("동선 시간은 오름차순이어야 합니다.");
+    }
+  }
+  return {
+    times: path.times.map(Number),
+    azimuths: path.azimuths.map(Number),
+    elevations: path.elevations.map(Number),
+    distances: path.distances.map(Number),
+    visible: path.visible ? path.visible.map(Number) : undefined
+  };
+}
+
+function saveScenarioJson() {
+  const data = {
+    version: 1,
+    frameRate: vState.fps,
+    masterVolume: calib.masterVol,
+    outputMode,
+    speakerRouting: {
+      FL: SPEAKERS[0].assignedCh,
+      FR: SPEAKERS[1].assignedCh,
+      RL: SPEAKERS[2].assignedCh,
+      RR: SPEAKERS[3].assignedCh
+    },
+    tracks: mixState.tracks.map(track => ({
+      fileName: track.fileName,
+      type: track.type,
+      delivery: track.delivery,
+      channelRoute: track.channelRoute,
+      startFrame: track.startFrame,
+      endFrame: track.endFrame,
+      pathName: track.pathName,
+      pathData: track.pathData
+    }))
+  };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'xr_audio_scenario.json';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  document.getElementById('mixRenderStatus').textContent =
+    "설정 JSON을 저장했습니다. JSON에는 음원 파일 자체가 포함되지 않으므로 다른 세션에서는 같은 음원 파일도 다시 등록해야 합니다.";
+}
+
+function applyScenarioJson(data) {
+  if (!data || !Array.isArray(data.tracks)) throw new Error("JSON에 tracks 배열이 없습니다.");
+  if (data.masterVolume !== undefined &&
+      (!Number.isFinite(Number(data.masterVolume)) || Number(data.masterVolume) < 0 || Number(data.masterVolume) > 2)) {
+    throw new Error("masterVolume은 0부터 2 사이의 숫자여야 합니다.");
+  }
+  if (data.outputMode !== undefined && !['downmix', 'multichannel'].includes(data.outputMode)) {
+    throw new Error("outputMode 설정이 올바르지 않습니다.");
+  }
+  if (data.speakerRouting !== undefined) {
+    if (!data.speakerRouting || typeof data.speakerRouting !== 'object') throw new Error("speakerRouting 설정이 올바르지 않습니다.");
+    ['FL', 'FR', 'RL', 'RR'].forEach(id => {
+      const channel = Number(data.speakerRouting[id]);
+      if (!Number.isInteger(channel) || channel < 0 || channel > 3) {
+        throw new Error(`speakerRouting.${id}는 0부터 3 사이의 정수여야 합니다.`);
+      }
+    });
+  }
+  const availableBuffers = new Map();
+  mixState.tracks.forEach(track => {
+    if (track.buffer) {
+      if (!availableBuffers.has(track.fileName)) availableBuffers.set(track.fileName, []);
+      availableBuffers.get(track.fileName).push(track.buffer);
+    }
+  });
+
+  const restored = data.tracks.map(config => {
+    if (!config || typeof config.fileName !== 'string' || !config.fileName) throw new Error("음원 파일명이 없는 트랙이 있습니다.");
+    if (!['DX', 'FX', 'MX'].includes(config.type)) throw new Error(`'${config.fileName}'의 유형 설정이 올바르지 않습니다.`);
+    if (!['object', 'channel'].includes(config.delivery)) throw new Error(`'${config.fileName}'의 전달 방식이 올바르지 않습니다.`);
+    const channelRoute = String(config.channelRoute);
+    if (!['auto', '0', '1', '2', '3'].includes(channelRoute)) {
+      throw new Error(`'${config.fileName}'의 채널 처리 설정이 올바르지 않습니다.`);
+    }
+    const startFrame = Number(config.startFrame), endFrame = Number(config.endFrame);
+    if (!Number.isInteger(startFrame) || !Number.isInteger(endFrame) || startFrame < 0 || endFrame < startFrame) {
+      throw new Error(`'${config.fileName}'의 시작/끝 프레임이 올바르지 않습니다.`);
+    }
+    let pathData = null;
+    if (config.pathData) pathData = validateScenarioPath(config.pathData);
+    const candidates = availableBuffers.get(config.fileName) || [];
+    return {
+      id: mixState.nextId++,
+      fileName: config.fileName,
+      buffer: candidates.shift() || null,
+      type: config.type,
+      delivery: config.delivery,
+      channelRoute,
+      startFrame: Math.min(startFrame, mixFrameCount()),
+      endFrame: Math.min(Math.max(startFrame, endFrame), mixFrameCount()),
+      pathData,
+      pathName: typeof config.pathName === 'string' ? config.pathName : ''
+    };
+  });
+  mixState.tracks = restored;
+  if (data.speakerRouting) {
+    ['FL', 'FR', 'RL', 'RR'].forEach((id, index) => {
+      const channel = Number(data.speakerRouting[id]);
+      if (Number.isInteger(channel) && channel >= 0 && channel < 4) {
+        SPEAKERS[index].assignedCh = channel;
+        const route = document.getElementById(`route${id}`);
+        if (route) route.value = channel;
+      }
+    });
+  }
+  if (data.masterVolume !== undefined) {
+    calib.masterVol = Number(data.masterVolume);
+    document.getElementById('slMasterVol').value = Math.round(calib.masterVol * 100);
+    document.getElementById('txtMasterVol').textContent = `${Math.round(calib.masterVol * 100)}%`;
+  }
+  if (data.outputMode !== undefined) {
+    outputMode = data.outputMode;
+    document.getElementById('btnModeDownmix').classList.toggle('active', outputMode === 'downmix');
+    document.getElementById('btnModeMulti').classList.toggle('active', outputMode === 'multichannel');
+  }
+  invalidateScenarioRender();
+  rebuildGraph();
+  renderMixTracks();
+  const missing = restored.filter(track => !track.buffer).length;
+  document.getElementById('mixRenderStatus').textContent = missing
+    ? `설정을 불러왔습니다. ${missing}개 음원은 파일 선택 버튼으로 원본 파일을 다시 연결하세요.`
+    : `${restored.length}개 음원 설정을 불러왔습니다.`;
+}
+
+function loadScenarioJson(event) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onerror = () => alert(`'${file.name}' 설정 파일을 읽지 못했습니다.`);
+  reader.onload = () => {
+    try {
+      applyScenarioJson(JSON.parse(reader.result));
+    } catch (error) {
+      alert(`설정 JSON 오류: ${error.message}`);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function connectScenarioChannelSource(context, merger, track, source, splitter) {
+  const channels = track.buffer.numberOfChannels;
+  if (track.channelRoute !== 'auto') {
+    const downmix = context.createGain();
+    downmix.gain.value = 1 / channels;
+    for (let channel = 0; channel < channels; channel++) splitter.connect(downmix, channel, 0);
+    downmix.connect(merger, 0, SPEAKERS[Number(track.channelRoute)].assignedCh);
+    return;
+  }
+  if (channels > 4) throw new Error(`'${track.fileName}'은 ${channels}채널입니다. 자동 매핑은 최대 4채널까지 지원합니다.`);
+  for (let channel = 0; channel < channels; channel++) {
+    splitter.connect(merger, channel, SPEAKERS[channel].assignedCh);
+  }
+}
+
+function addScenarioTrackToOfflineContext(context, merger, track, totalSamples, durationSeconds) {
+  if (!track.buffer) throw new Error(`'${track.fileName}' 음원 파일이 연결되지 않았습니다.`);
+  if (track.delivery === 'object' && !track.pathData) {
+    throw new Error(`'${track.fileName}'에 object 동선 CSV를 지정하세요.`);
+  }
+  if (track.delivery === 'object') validateScenarioPath(track.pathData);
+
+  const startSec = Math.max(0, track.startFrame / vState.fps);
+  const endSec = Math.min(durationSeconds, (track.endFrame + 1) / vState.fps);
+  const playDuration = Math.min(track.buffer.duration, endSec - startSec);
+  if (playDuration <= 0 || startSec >= durationSeconds) return;
+
+  const source = context.createBufferSource();
+  source.buffer = track.buffer;
+  const splitter = context.createChannelSplitter(track.buffer.numberOfChannels);
+  source.connect(splitter);
+
+  if (track.delivery === 'channel') {
+    connectScenarioChannelSource(context, merger, track, source, splitter);
+  } else {
+    const mono = context.createGain();
+    mono.gain.value = 1 / track.buffer.numberOfChannels;
+    for (let channel = 0; channel < track.buffer.numberOfChannels; channel++) splitter.connect(mono, channel, 0);
+
+    const gains = SPEAKERS.map(() => context.createGain());
+    gains.forEach((gain, index) => {
+      gain.gain.setValueAtTime(0, 0);
+      mono.connect(gain);
+      gain.connect(merger, 0, SPEAKERS[index].assignedCh);
+    });
+    const blockSeconds = 0.02;
+    for (let time = startSec; time < endSec; time += blockSeconds) {
+      const sample = Math.floor(time * SAMPLE_RATE);
+      const calc = computeGainsAtSample(sample, track.pathData, false);
+      gains.forEach((gain, index) => gain.gain.setValueAtTime(calc.finalGains[index], time));
+    }
+    gains.forEach(gain => gain.gain.setValueAtTime(0, endSec));
+  }
+
+  source.start(startSec, 0, Math.min(playDuration, totalSamples / SAMPLE_RATE - startSec));
+}
+
+async function renderScenarioMix() {
+  if (mixState.renderedBuffer) return mixState.renderedBuffer;
+  if (mixState.isRendering) throw new Error("이미 렌더링 중입니다.");
+  if (!mixState.tracks.length) throw new Error("먼저 음원을 등록하세요.");
+  mixState.isRendering = true;
+  document.getElementById('btnRenderMix').disabled = true;
+  document.getElementById('btnPlayMixVideo').disabled = true;
+  document.getElementById('mixTracksList').style.pointerEvents = 'none';
+  document.getElementById('mixRenderStatus').textContent = "모든 음원을 4채널로 합산 렌더링 중...";
+  try {
+    const renderRevision = mixState.revision;
+    const masterVolume = Math.max(0, Number.isFinite(calib.masterVol) ? calib.masterVol : 1);
+    const durationSeconds = mixDurationSeconds();
+    const totalSamples = Math.max(1, Math.ceil(durationSeconds * SAMPLE_RATE));
+    const context = new OfflineAudioContext(4, totalSamples, SAMPLE_RATE);
+    const merger = context.createChannelMerger(4);
+    merger.connect(context.destination);
+    mixState.tracks.forEach(track => addScenarioTrackToOfflineContext(context, merger, track, totalSamples, durationSeconds));
+
+    const rendered = await context.startRendering();
+    if (renderRevision !== mixState.revision) throw new Error("렌더링 중 설정이 변경되었습니다. 다시 렌더링하세요.");
+    let peak = 0;
+    for (let channel = 0; channel < 4; channel++) {
+      const samples = rendered.getChannelData(channel);
+      for (let i = 0; i < samples.length; i++) peak = Math.max(peak, Math.abs(samples[i]));
+    }
+    mixState.peakBeforeLimit = peak * masterVolume;
+    mixState.limiterGain = mixState.peakBeforeLimit > 1 ? 1 / mixState.peakBeforeLimit : 1;
+    mixState.appliedGain = masterVolume * mixState.limiterGain;
+    for (let channel = 0; channel < 4; channel++) {
+      const samples = rendered.getChannelData(channel);
+      for (let i = 0; i < samples.length; i++) samples[i] *= mixState.appliedGain;
+    }
+    mixState.renderedBuffer = rendered;
+    const limited = mixState.peakBeforeLimit > 1;
+    document.getElementById('mixRenderStatus').textContent =
+      `렌더링 완료 · 입력 합산 peak ${mixState.peakBeforeLimit.toFixed(3)} · 클리핑 감쇄 ${mixState.limiterGain.toFixed(4)}x${limited ? ' 적용' : ' (미적용)'} · 출력 peak ≤ 1.0`;
+    return rendered;
+  } finally {
+    mixState.isRendering = false;
+    document.getElementById('btnRenderMix').disabled = false;
+    document.getElementById('btnPlayMixVideo').disabled = false;
+    document.getElementById('mixTracksList').style.pointerEvents = '';
+  }
+}
+
+async function exportScenarioWav() {
+  try {
+    const rendered = await renderScenarioMix();
+    const url = URL.createObjectURL(encode4ChWavBlob(rendered));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'xr_scenario_mix_4ch.wav';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (error) {
+    document.getElementById('mixRenderStatus').textContent = `렌더링 실패: ${error.message}`;
+    alert(`4채널 렌더링 실패: ${error.message}`);
+  }
+}
+
+function stopScenarioPlayback(pauseVideo) {
+  const source = mixState.playingSource;
+  mixState.playingSource = null;
+  const shouldPauseVideo = pauseVideo !== false && mixState.syncVideo;
+  mixState.syncVideo = false;
+  if (source) {
+    try { source.stop(); } catch (error) {}
+  }
+  stopScenarioPreview();
+  if (shouldPauseVideo) vVideo.pause();
+  document.getElementById('btnPlayMixVideo').textContent = "▶ 영상+음원 재생";
+}
+
+function connectScenarioPlaybackSource(source) {
+  if (audioCtx.destination.maxChannelCount >= 4) {
+    source.connect(audioCtx.destination);
+    return;
+  }
+  const splitter = audioCtx.createChannelSplitter(4);
+  const merger = audioCtx.createChannelMerger(2);
+  const left = audioCtx.createGain(), right = audioCtx.createGain();
+  left.gain.value = 0.5;
+  right.gain.value = 0.5;
+  source.connect(splitter);
+  splitter.connect(left, 0, 0);
+  splitter.connect(left, 2, 0);
+  splitter.connect(right, 1, 0);
+  splitter.connect(right, 3, 0);
+  left.connect(merger, 0, 0);
+  right.connect(merger, 0, 1);
+  merger.connect(audioCtx.destination);
+}
+
+async function playScenarioWithVideo() {
+  if (vVideo.readyState < 1) {
+    alert("먼저 동영상을 불러오세요.");
+    return;
+  }
+  if (!mixState.renderedBuffer) {
+    try {
+      await renderScenarioMix();
+      document.getElementById('btnPlayMixVideo').textContent = "▶ 렌더 완료 - 눌러 재생";
+      document.getElementById('mixRenderStatus').textContent =
+        "렌더링이 완료됐습니다. 브라우저 재생 제한으로 영상과 음원을 시작하려면 재생 버튼을 한 번 더 누르세요.";
+    } catch (error) {
+      document.getElementById('mixRenderStatus').textContent = `재생 준비 실패: ${error.message}`;
+      alert(`영상 동기 재생 실패: ${error.message}`);
+    }
+    return;
+  }
+
+  try {
+    const rendered = mixState.renderedBuffer;
+    const offset = Math.max(0, vVideo.currentTime);
+    if (offset >= rendered.duration) {
+      alert("현재 영상 위치가 렌더링된 오디오 길이의 끝을 넘었습니다.");
+      return;
+    }
+    if (beeState.playingTrial) endBeeTrial();
+    if (isPlaying) stopPlayback();
+    stopScenarioPreview();
+    stopScenarioPlayback();
+    setOutputMode('multichannel');
+    initAudio();
+    const audioReady = audioCtx.state === 'suspended' ? audioCtx.resume() : Promise.resolve();
+    const source = audioCtx.createBufferSource();
+    source.buffer = rendered;
+    connectScenarioPlaybackSource(source);
+    source.onended = () => {
+      if (mixState.playingSource === source) {
+        mixState.playingSource = null;
+        mixState.syncVideo = false;
+        document.getElementById('btnPlayMixVideo').textContent = "▶ 영상+음원 재생";
+      }
+    };
+    mixState.playingSource = source;
+    mixState.syncVideo = true;
+    document.getElementById('btnPlayMixVideo').textContent = "⏸ 영상+음원 재생 중";
+    document.getElementById('mixRenderStatus').textContent = audioCtx.destination.maxChannelCount >= 4
+      ? "영상과 4채널 렌더링 음원을 동기화해 재생 중입니다."
+      : "영상과 음원을 동기화해 재생 중입니다. 장치가 4채널을 지원하지 않아 스테레오로 모니터링됩니다.";
+
+    const videoReady = vVideo.play();
+    Promise.all([audioReady, videoReady]).then(() => {
+      if (mixState.playingSource === source) source.start(audioCtx.currentTime + 0.02, offset);
+    }).catch(error => {
+      if (mixState.playingSource === source) stopScenarioPlayback();
+      document.getElementById('mixRenderStatus').textContent = `동기 재생 시작 실패: ${error.message}`;
+      alert(`영상 동기 재생 실패: ${error.message}`);
+    });
+  } catch (error) {
+    document.getElementById('mixRenderStatus').textContent = `재생 준비 실패: ${error.message}`;
+    alert(`영상 동기 재생 실패: ${error.message}`);
+  }
+}
+
+// 사용자 CSV 파일 파싱
+function loadUserCsv(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const text = e.target.result;
+      const lines = text.trim().split(/\r?\n/);
+      const times = [], azs = [], els = [], dists = [], visible = [];
+      const header = lines[0].toLowerCase();
+      const visibleIndex = header.split(',').indexOf('visible');
+
+      for (let i = 1; i < lines.length; i++) {
+        const parts = lines[i].split(',').map(s => s.trim());
+        if (parts.length >= 4) {
+          const time = parseFloat(parts[1]);
+          times.push(Number.isFinite(time) ? time : i * 0.0333);
+          azs.push(parseFloat(parts[2]) || 0);
+          els.push(parseFloat(parts[3]) || 0);
+          dists.push(parseFloat(parts[4]) || 2.0);
+          if (visibleIndex >= 0) visible.push(parseInt(parts[visibleIndex], 10) === 1 ? 1 : 0);
+        }
+      }
+      if (times.length > 0) {
+        currentPathData = { times, azimuths: azs, elevations: els, distances: dists };
+        if (visibleIndex >= 0) currentPathData.visible = visible;
+        currentPresetKey = 'custom_' + file.name;
+        document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+        document.getElementById('csvBadge').innerText = file.name;
+        stopPlayback();
+        alert(`CSV 파일 '${file.name}'을 성공적으로 불러왔습니다! (${times.length} 프레임)`);
+      }
+    } catch(err) {
+      alert('CSV 파싱 오류: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// =============================================================================
+// [2회차 : 비디오 화면 위치 ➔ 공간 음향 방향 변환 엔진]
+// =============================================================================
+const vState = {
+  fps: 30.0,
+  totalFrames: 750,
+  duration: 25.0,
+  currentFrame: 0,
+  videoWidth: 1280,
+  videoHeight: 720,
+  aspectRatio: 16 / 9,
+
+  // 화각 (도 단위)
+  hFov: 60.0,
+  vFov: 36.0,
+  focalLengthPx: 1108.5,
+
+  // 마커 (비디오 해상도 좌표 기준)
+  marker: {
+    active: false,
+    x: 640,
+    y: 360,
+    azimuth: 0.0,
+    elevation: 0.0
+  },
+
+  hover: {
+    active: false,
+    x: 0,
+    y: 0
+  },
+
+  keyframes: []
+};
+
+const beeState = {
+  inputMode: 'idle',
+  origin: null,
+  front: null,
+  keyframes: [],
+  playingTrial: false,
+  previousLoop: true
+};
+
+const vVideo = document.getElementById('vVideo');
+const vOverlayCanvas = document.getElementById('vOverlayCanvas');
+const vCtx = vOverlayCanvas.getContext('2d');
+const vCompassCanvas = document.getElementById('vCompassCanvas');
+const vCompassCtx = vCompassCanvas.getContext('2d');
+const vViewportWrapper = document.getElementById('vViewportWrapper');
+const vDropOverlay = document.getElementById('vDropOverlay');
+const SAM2_SERVER_URL = 'http://127.0.0.1:8765';
+const sam2State = {
+  connected: false,
+  sessionId: null,
+  frameCount: 0,
+  preparing: false,
+  mode: 'idle',
+  targets: [],
+  selectedTargetId: null,
+  resultCache: new Map(),
+  maskImage: null,
+  maskCanvas: null,
+  maskFrame: -1,
+  frameMetrics: null,
+  frameRequestId: 0,
+  pollTimer: null
+};
+
+// 1. 화각 계산 함수
+function updateVFovCalculations() {
+  const hFovRad = (vState.hFov * Math.PI) / 180.0;
+  vState.focalLengthPx = (vState.videoWidth / 2.0) / Math.tan(hFovRad / 2.0);
+
+  // V_FOV = 2 * arctan( tan(H_FOV / 2) * (H / W) )
+  const vFovRad = 2.0 * Math.atan(Math.tan(hFovRad / 2.0) * (vState.videoHeight / vState.videoWidth));
+  vState.vFov = (vFovRad * 180.0) / Math.PI;
+
+  document.getElementById('vDispVFov').textContent = vState.vFov.toFixed(2);
+  document.getElementById('vDispFocalLength').textContent = vState.focalLengthPx.toFixed(1) + " px";
+
+  if (vState.marker.active) {
+    calculateVideoDirection(vState.marker.x, vState.marker.y);
+  }
+  renderVideoOverlay();
+  renderVideoCompass();
+}
+
+function onHFovChanged(val) {
+  vState.hFov = parseFloat(val) || 60.0;
+  document.getElementById('vSliderHFov').value = vState.hFov;
+  updateVFovCalculations();
+}
+
+function onHFovSlider(val) {
+  vState.hFov = parseFloat(val);
+  document.getElementById('vInputHFov').value = vState.hFov;
+  updateVFovCalculations();
+}
+
+// 2. 화면 픽셀 → 방향(방위각, 고도각)
+function videoPixelToDirection(pxX, pxY) {
+  const deltaX = pxX - vState.videoWidth / 2.0;
+  const deltaY = vState.videoHeight / 2.0 - pxY;
+  const f = vState.focalLengthPx;
+  // 방위각: tan(θ) = deltaX / f (정면 0°, 우측 +, 좌측 -)
+  const azimuthDeg = Math.atan2(deltaX, f) * 180.0 / Math.PI;
+  // 고도각: tan(φ) = deltaY / sqrt(deltaX^2 + f^2) (수평 0°, 위 +, 아래 -)
+  const elevationDeg = Math.atan2(deltaY, Math.hypot(deltaX, f)) * 180.0 / Math.PI;
+  return { deltaX, deltaY, azimuthDeg, elevationDeg };
+}
+
+function calculateVideoDirection(pxX, pxY) {
+  const { deltaX, deltaY, azimuthDeg, elevationDeg } = videoPixelToDirection(pxX, pxY);
+
+  vState.marker.active = true;
+  vState.marker.x = Math.round(pxX);
+  vState.marker.y = Math.round(pxY);
+  vState.marker.azimuth = azimuthDeg;
+  vState.marker.elevation = elevationDeg;
+
+  // UI 수치 표시
+  document.getElementById('vValAzimuth').textContent = (azimuthDeg >= 0 ? "+" : "") + azimuthDeg.toFixed(1) + "°";
+  document.getElementById('vValElevation').textContent = (elevationDeg >= 0 ? "+" : "") + elevationDeg.toFixed(1) + "°";
+
+  let azDesc = "정면 중앙 (0.0°)";
+  if (azimuthDeg > 0.5) azDesc = `우측 (+${azimuthDeg.toFixed(1)}°)`;
+  else if (azimuthDeg < -0.5) azDesc = `좌측 (${azimuthDeg.toFixed(1)}°)`;
+  document.getElementById('vDescAzimuth').textContent = azDesc;
+
+  let elDesc = "수평 중앙 (0.0°)";
+  if (elevationDeg > 0.5) elDesc = `상향 (+${elevationDeg.toFixed(1)}°)`;
+  else if (elevationDeg < -0.5) elDesc = `하향 (${elevationDeg.toFixed(1)}°)`;
+  document.getElementById('vDescElevation').textContent = elDesc;
+
+  document.getElementById('vCoordPixel').textContent = `${vState.marker.x}, ${vState.marker.y} px`;
+  document.getElementById('vCoordDelta').textContent = `${deltaX >= 0 ? "+" : ""}${Math.round(deltaX)}, ${deltaY >= 0 ? "+" : ""}${Math.round(deltaY)} px`;
+
+  renderVideoOverlay();
+  renderVideoCompass();
+}
+
+function resizeVideoCanvas() {
+  const rect = vViewportWrapper.getBoundingClientRect();
+  if (rect.width > 0 && rect.height > 0) {
+    vOverlayCanvas.width = rect.width;
+    vOverlayCanvas.height = rect.height;
+    renderVideoOverlay();
+  }
+}
+
+function vToCanvasCoord(vx, vy) {
+  const scaleX = vOverlayCanvas.width / vState.videoWidth;
+  const scaleY = vOverlayCanvas.height / vState.videoHeight;
+  return { x: vx * scaleX, y: vy * scaleY };
+}
+
+function canvasToVCoord(cx, cy) {
+  const scaleX = vState.videoWidth / vOverlayCanvas.width;
+  const scaleY = vState.videoHeight / vOverlayCanvas.height;
+  return { x: cx * scaleX, y: cy * scaleY };
+}
+
+function renderVideoOverlay() {
+  vCtx.clearRect(0, 0, vOverlayCanvas.width, vOverlayCanvas.height);
+  const cw = vOverlayCanvas.width;
+  const ch = vOverlayCanvas.height;
+
+  // 1. 그리드 가이드
+  if (document.getElementById('vChkGrid').checked) {
+    vCtx.save();
+    vCtx.strokeStyle = "rgba(56, 189, 248, 0.25)";
+    vCtx.lineWidth = 1;
+    vCtx.setLineDash([4, 4]);
+
+    vCtx.beginPath();
+    vCtx.moveTo(cw / 2, 0); vCtx.lineTo(cw / 2, ch);
+    vCtx.moveTo(0, ch / 2); vCtx.lineTo(cw, ch / 2);
+    vCtx.stroke();
+
+    vCtx.fillStyle = "rgba(56, 189, 248, 0.7)";
+    vCtx.font = "10px monospace";
+    vCtx.fillText("CENTER (0°, 0°)", cw / 2 + 5, ch / 2 - 5);
+    vCtx.restore();
+  }
+
+  // 2. 키프레임 궤적 선
+  if (vState.keyframes.length > 0) {
+    vCtx.save();
+    vCtx.strokeStyle = "rgba(168, 85, 247, 0.6)";
+    vCtx.lineWidth = 2;
+    vCtx.beginPath();
+    vState.keyframes.forEach((kf, idx) => {
+      const pt = vToCanvasCoord(kf.x, kf.y);
+      if (idx === 0) vCtx.moveTo(pt.x, pt.y);
+      else vCtx.lineTo(pt.x, pt.y);
+    });
+    vCtx.stroke();
+
+    vState.keyframes.forEach((kf) => {
+      const pt = vToCanvasCoord(kf.x, kf.y);
+      vCtx.fillStyle = (kf.frame === vState.currentFrame) ? "#38bdf8" : "rgba(168, 85, 247, 0.9)";
+      vCtx.beginPath();
+      vCtx.arc(pt.x, pt.y, (kf.frame === vState.currentFrame) ? 6 : 3.5, 0, Math.PI * 2);
+      vCtx.fill();
+    });
+    vCtx.restore();
+  }
+
+  // 3. 선택된 활성 마커
+  if (vState.marker.active) {
+    const pt = vToCanvasCoord(vState.marker.x, vState.marker.y);
+    vCtx.save();
+
+    vCtx.strokeStyle = "#38bdf8";
+    vCtx.lineWidth = 2;
+    vCtx.shadowColor = "rgba(56, 189, 248, 0.8)";
+    vCtx.shadowBlur = 8;
+    vCtx.beginPath();
+    vCtx.arc(pt.x, pt.y, 13, 0, Math.PI * 2);
+    vCtx.stroke();
+
+    vCtx.fillStyle = "#ffffff";
+    vCtx.beginPath();
+    vCtx.arc(pt.x, pt.y, 3, 0, Math.PI * 2);
+    vCtx.fill();
+
+    vCtx.beginPath();
+    vCtx.moveTo(pt.x - 20, pt.y); vCtx.lineTo(pt.x - 13, pt.y);
+    vCtx.moveTo(pt.x + 13, pt.y); vCtx.lineTo(pt.x + 20, pt.y);
+    vCtx.moveTo(pt.x, pt.y - 20); vCtx.lineTo(pt.x - 13, pt.y);
+    vCtx.moveTo(pt.x, pt.y + 13); vCtx.lineTo(pt.x, pt.y + 20);
+    vCtx.stroke();
+
+    const tagText = `Az: ${vState.marker.azimuth >= 0 ? "+" : ""}${vState.marker.azimuth.toFixed(1)}° · El: ${vState.marker.elevation >= 0 ? "+" : ""}${vState.marker.elevation.toFixed(1)}°`;
+    vCtx.font = "bold 11px monospace";
+    const textWidth = vCtx.measureText(tagText).width;
+    const boxX = Math.min(Math.max(pt.x + 14, 8), cw - textWidth - 20);
+    const boxY = Math.min(Math.max(pt.y - 24, 20), ch - 8);
+
+    vCtx.fillStyle = "rgba(15, 23, 42, 0.85)";
+    vCtx.strokeStyle = "#38bdf8";
+    vCtx.lineWidth = 1;
+    vCtx.fillRect(boxX, boxY - 13, textWidth + 12, 18);
+    vCtx.strokeRect(boxX, boxY - 13, textWidth + 12, 18);
+
+    vCtx.fillStyle = "#38bdf8";
+    vCtx.fillText(tagText, boxX + 6, boxY);
+    vCtx.restore();
+  }
+  renderBeeOverlay();
+  renderSam2Overlay();
+}
+
+function beeAzimuthAt(x, y) {
+  const dx = x - beeState.origin.x;
+  const dy = y - beeState.origin.y;
+  const fx = beeState.front.x - beeState.origin.x;
+  const fy = beeState.front.y - beeState.origin.y;
+  const dot = fx * dx + fy * dy;
+  const cross = fx * dy - fy * dx;
+  return Math.atan2(cross, dot) * 180 / Math.PI;
+}
+
+function beePositionAtFrame(frame) {
+  const keys = beeState.keyframes;
+  if (!keys.length) return null;
+  const exact = keys.find(kf => kf.frame === frame);
+  if (exact) return { x: exact.x, y: exact.y, azimuth: exact.azimuth, visible: exact.visible };
+
+  for (let i = 0; i < keys.length - 1; i++) {
+    const a = keys[i], b = keys[i + 1];
+    if (frame > a.frame && frame < b.frame) {
+      if (!a.visible || !b.visible) return { visible: false };
+      const frac = (frame - a.frame) / (b.frame - a.frame);
+      const x = a.x + frac * (b.x - a.x);
+      const y = a.y + frac * (b.y - a.y);
+      return {
+        x,
+        y,
+        azimuth: beeAzimuthAt(x, y),
+        visible: true
+      };
+    }
+  }
+  return null;
+}
+
+function renderBeeOverlay() {
+  if (!beeState.origin) return;
+  vCtx.save();
+  const origin = vToCanvasCoord(beeState.origin.x, beeState.origin.y);
+
+  if (beeState.front) {
+    const front = vToCanvasCoord(beeState.front.x, beeState.front.y);
+    vCtx.strokeStyle = "#facc15";
+    vCtx.lineWidth = 3;
+    vCtx.beginPath();
+    vCtx.moveTo(origin.x, origin.y);
+    vCtx.lineTo(front.x, front.y);
+    vCtx.stroke();
+    vCtx.fillStyle = "#facc15";
+    vCtx.font = "bold 11px sans-serif";
+    vCtx.fillText("정면 0°", front.x + 5, front.y - 5);
+  }
+
+  vCtx.fillStyle = "#34d399";
+  vCtx.strokeStyle = "#052e2b";
+  vCtx.lineWidth = 2;
+  vCtx.beginPath();
+  vCtx.arc(origin.x, origin.y, 8, 0, Math.PI * 2);
+  vCtx.fill();
+  vCtx.stroke();
+  vCtx.fillStyle = "#34d399";
+  vCtx.font = "bold 11px sans-serif";
+  vCtx.fillText("나", origin.x + 10, origin.y - 8);
+
+  vCtx.lineWidth = 2;
+  for (let i = 0; i < beeState.keyframes.length - 1; i++) {
+    const a = beeState.keyframes[i], b = beeState.keyframes[i + 1];
+    if (!a.visible || !b.visible || b.frame - a.frame > 10) continue;
+    const p1 = vToCanvasCoord(a.x, a.y), p2 = vToCanvasCoord(b.x, b.y);
+    vCtx.strokeStyle = "rgba(251, 191, 36, 0.9)";
+    vCtx.beginPath();
+    vCtx.moveTo(p1.x, p1.y);
+    vCtx.lineTo(p2.x, p2.y);
+    vCtx.stroke();
+  }
+  beeState.keyframes.forEach(kf => {
+    const point = vToCanvasCoord(kf.x, kf.y);
+    vCtx.fillStyle = kf.visible ? "#fbbf24" : "#f87171";
+    vCtx.beginPath();
+    vCtx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+    vCtx.fill();
+  });
+
+  const current = beePositionAtFrame(vState.currentFrame);
+  if (current && current.visible) {
+    const point = vToCanvasCoord(current.x, current.y);
+    vCtx.strokeStyle = "#fff";
+    vCtx.lineWidth = 2;
+    vCtx.beginPath();
+    vCtx.arc(point.x, point.y, 10, 0, Math.PI * 2);
+    vCtx.stroke();
+  }
+  vCtx.restore();
+}
+
+// 2D 청취자 방향 나침반/레이더
+function renderVideoCompass() {
+  const w = vCompassCanvas.width, h = vCompassCanvas.height;
+  const cx = w / 2, cy = h / 2;
+  const r = cx - 16;
+
+  vCompassCtx.clearRect(0, 0, w, h);
+  vCompassCtx.save();
+  vCompassCtx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+  vCompassCtx.lineWidth = 1;
+
+  [0.33, 0.66, 1.0].forEach(f => {
+    vCompassCtx.beginPath();
+    vCompassCtx.arc(cx, cy, r * f, 0, Math.PI * 2);
+    vCompassCtx.stroke();
+  });
+
+  vCompassCtx.beginPath();
+  vCompassCtx.moveTo(cx, cy - r); vCompassCtx.lineTo(cx, cy + r);
+  vCompassCtx.moveTo(cx - r, cy); vCompassCtx.lineTo(cx + r, cy);
+  vCompassCtx.stroke();
+
+  vCompassCtx.fillStyle = "rgba(255, 255, 255, 0.6)";
+  vCompassCtx.font = "bold 9px sans-serif";
+  vCompassCtx.textAlign = "center";
+  vCompassCtx.textBaseline = "middle";
+  vCompassCtx.fillText("FRONT (0°)", cx, cy - r - 7);
+  vCompassCtx.fillText("+90°", cx + r + 8, cy);
+  vCompassCtx.fillText("-90°", cx - r - 8, cy);
+
+  // 화각 섹터
+  const halfHRad = ((vState.hFov / 2.0) * Math.PI) / 180.0;
+  vCompassCtx.fillStyle = "rgba(56, 189, 248, 0.12)";
+  vCompassCtx.beginPath();
+  vCompassCtx.moveTo(cx, cy);
+  vCompassCtx.arc(cx, cy, r, -Math.PI / 2 - halfHRad, -Math.PI / 2 + halfHRad);
+  vCompassCtx.closePath();
+  vCompassCtx.fill();
+
+  vCompassCtx.fillStyle = "#ffffff";
+  vCompassCtx.beginPath();
+  vCompassCtx.arc(cx, cy, 3, 0, Math.PI * 2);
+  vCompassCtx.fill();
+
+  if (vState.marker.active) {
+    const azRad = (vState.marker.azimuth * Math.PI) / 180.0;
+    const targetAngle = -Math.PI / 2 + azRad;
+    const tx = cx + Math.cos(targetAngle) * (r * 0.95);
+    const ty = cy + Math.sin(targetAngle) * (r * 0.95);
+
+    vCompassCtx.strokeStyle = "#38bdf8";
+    vCompassCtx.lineWidth = 2.5;
+    vCompassCtx.beginPath();
+    vCompassCtx.moveTo(cx, cy);
+    vCompassCtx.lineTo(tx, ty);
+    vCompassCtx.stroke();
+
+    vCompassCtx.fillStyle = "#38bdf8";
+    vCompassCtx.beginPath();
+    vCompassCtx.arc(tx, ty, 5, 0, Math.PI * 2);
+    vCompassCtx.fill();
+  }
+
+  vCompassCtx.restore();
+}
+
+// 비디오 프레임 제어
+function seekVideoFrame(f) {
+  f = Math.max(0, Math.min(vState.totalFrames, f));
+  vState.currentFrame = f;
+  vVideo.currentTime = f / vState.fps;
+  updateVideoTimelineText();
+  renderVideoOverlay();
+  updateMixTimelinePlayhead();
+}
+
+function updateVideoTimelineText() {
+  const curSec = vVideo.currentTime || 0;
+  const min = Math.floor(curSec / 60);
+  const sec = (curSec % 60).toFixed(3).padStart(6, '0');
+  document.getElementById('vTimeInfo').textContent = `Frame: ${vState.currentFrame} / ${vState.totalFrames} (${String(min).padStart(2, '0')}:${sec})`;
+  document.getElementById('vTimelineSlider').value = vState.currentFrame;
+}
+
+function toggleVideoPlay() {
+  if (vVideo.paused) {
+    vVideo.play();
+    document.getElementById('btnVPlayPause').innerHTML = '⏸ 정지 <span class="kbd-hint">Space</span>';
+    document.getElementById('btnVPlayPause').className = 'btn-sm btn-secondary';
+  } else {
+    if (beeState.playingTrial) endBeeTrial();
+    if (mixState.syncVideo) stopScenarioPlayback(false);
+    vVideo.pause();
+    document.getElementById('btnVPlayPause').innerHTML = '▶ 재생 <span class="kbd-hint">Space</span>';
+    document.getElementById('btnVPlayPause').className = 'btn-sm btn-success';
+  }
+}
+
+vVideo.addEventListener('timeupdate', () => {
+  vState.currentFrame = Math.round(vVideo.currentTime * vState.fps);
+  updateVideoTimelineText();
+  renderVideoOverlay();
+  updateMixTimelinePlayhead();
+  loadSam2FrameOverlay();
+});
+
+vVideo.addEventListener('seeked', loadSam2FrameOverlay);
+
+vVideo.addEventListener('ended', () => {
+  document.getElementById('btnVPlayPause').innerHTML = '▶ 재생 <span class="kbd-hint">Space</span>';
+  document.getElementById('btnVPlayPause').className = 'btn-sm btn-success';
+  if (beeState.playingTrial) endBeeTrial();
+  if (mixState.syncVideo) stopScenarioPlayback(false);
+});
+
+vVideo.addEventListener('loadedmetadata', () => {
+  vState.videoWidth = vVideo.videoWidth || 1280;
+  vState.videoHeight = vVideo.videoHeight || 720;
+  vState.duration = vVideo.duration || 25.0;
+  vState.totalFrames = Math.round(vState.duration * vState.fps);
+  vState.aspectRatio = vState.videoWidth / vState.videoHeight;
+  vViewportWrapper.style.aspectRatio = `${vState.videoWidth} / ${vState.videoHeight}`;
+  invalidateScenarioRender();
+  updateMixTrackFrameBounds();
+
+  document.getElementById('vTimelineSlider').max = vState.totalFrames;
+  document.getElementById('vHudRes').textContent = `${vState.videoWidth} × ${vState.videoHeight}`;
+  document.getElementById('vHudAspect').textContent = (Math.abs(vState.aspectRatio - 16/9) < 0.05) ? "16:9" : `${vState.aspectRatio.toFixed(2)}:1`;
+  document.getElementById('vHudFps').textContent = vState.fps.toFixed(2);
+
+  updateVFovCalculations();
+  resizeVideoCanvas();
+  vDropOverlay.classList.add('hidden');
+  seekVideoFrame(0);
+  updateSam2Controls();
+});
+
+function loadPracticeVideoSource(src) {
+  if (sam2State.sessionId && sam2State.jobStatus === 'running') {
+    sam2Api(`/api/sessions/${sam2State.sessionId}/cancel`, { method: 'POST', body: '{}' }).catch(() => {});
+  }
+  sam2State.sessionId = null;
+  sam2State.frameCount = 0;
+  sam2State.targets = [];
+  sam2State.selectedTargetId = null;
+  sam2State.resultCache.clear();
+  sam2State.maskImage = null;
+  sam2State.maskCanvas = null;
+  sam2State.maskFrame = -1;
+  sam2State.frameMetrics = null;
+  sam2State.jobStatus = 'idle';
+  renderSam2TargetsList();
+  vVideo.src = src;
+  vVideo.load();
+  updateSam2Controls();
+}
+
+function loadDefaultPracticeVideo() {
+  // 현재 HTML 파일이 위치한 디렉토리에 맞춰 상대 경로 계산
+  const isSubdir = window.location.pathname.replace(/\\/g, '/').includes('ISAD_1회차');
+  const path = isSubdir 
+    ? "../ISAD_2회차/음원 및 영상/Video.mp4" 
+    : "ISAD_2회차/음원 및 영상/Video.mp4";
+  loadPracticeVideoSource(path);
+}
+
+function onUserVideoFileSelected(e) {
+  const file = e.target.files[0];
+  if (file) {
+    loadPracticeVideoSource(URL.createObjectURL(file));
+  }
+}
+
+async function sam2Api(path, options) {
+  let response;
+  try {
+    response = await fetch(`${SAM2_SERVER_URL}${path}`, options || {});
+  } catch (error) {
+    throw new Error("SAM 2 서버에 연결할 수 없습니다. start_sam2_server.bat(Windows) 또는 sam2_server.py(macOS) 서버 창이 켜져 있는지 확인하세요.");
+  }
+  const contentType = response.headers.get('content-type') || '';
+  const body = contentType.includes('application/json') ? await response.json() : null;
+  if (!response.ok) throw new Error(body && body.error ? body.error : `SAM 2 서버 오류 (${response.status})`);
+  return body;
+}
+
+function updateSam2Controls() {
+  const hasVideo = vVideo.readyState >= 2 && vVideo.videoWidth > 0;
+  const selected = sam2State.targets.find(target => target.id === sam2State.selectedTargetId);
+  const jobRunning = sam2State.jobStatus === 'running';
+  document.getElementById('btnSam2Prepare').disabled = !sam2State.connected || !hasVideo || sam2State.preparing || !!sam2State.sessionId;
+  document.getElementById('btnSam2Seed').disabled = !sam2State.sessionId || sam2State.preparing || jobRunning;
+  document.getElementById('sam2TargetSelect').disabled = !sam2State.targets.length || jobRunning;
+  document.getElementById('btnSam2Correct').disabled = !selected || jobRunning;
+  document.getElementById('btnSam2Track').disabled = !selected || jobRunning || !sam2State.sessionId;
+  document.getElementById('btnSam2Cancel').disabled = !jobRunning;
+}
+
+async function connectSam2Server() {
+  const status = document.getElementById('sam2ServerStatus');
+  status.textContent = "서버 확인 중...";
+  try {
+    const health = await sam2Api('/health');
+    sam2State.connected = health.ok === true;
+    status.textContent = sam2State.connected ? `SAM 2 연결됨 · ${health.device}` : "SAM 2 연결 실패";
+    document.getElementById('sam2ProgressText').textContent =
+      "연결됐습니다. 사용할 영상을 선택한 뒤 영상 프레임 준비를 누르세요.";
+  } catch (error) {
+    sam2State.connected = false;
+    status.textContent = "서버 연결 실패";
+    document.getElementById('sam2ProgressText').textContent = error.message;
+    alert(error.message);
+  }
+  updateSam2Controls();
+}
+
+function waitForVideoSeek(time) {
+  if (vVideo.readyState >= 2 && Math.abs(vVideo.currentTime - time) < 0.0005) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      vVideo.removeEventListener('seeked', onSeeked);
+      reject(new Error("영상 프레임 이동 시간 초과"));
+    }, 10000);
+    function onSeeked() {
+      clearTimeout(timeout);
+      resolve();
+    }
+    vVideo.addEventListener('seeked', onSeeked, { once: true });
+    vVideo.currentTime = time;
+  });
+}
+
+function videoFrameToJpeg(canvas, context, frameIndex, quality) {
+  const time = Math.min((frameIndex + 0.001) / vState.fps, Math.max(0, vVideo.duration - 0.001));
+  return waitForVideoSeek(time).then(() => new Promise((resolve, reject) => {
+    try {
+      context.drawImage(vVideo, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error("영상 프레임을 JPEG로 변환하지 못했습니다. 영상 파일을 직접 선택해 보세요."));
+      }, 'image/jpeg', quality);
+    } catch (error) {
+      reject(new Error(`영상 프레임을 읽을 수 없습니다. '내 파일 선택'으로 영상을 다시 불러오세요. (${error.message})`));
+    }
+  }));
+}
+
+async function uploadSam2FrameChunk(sessionId, startFrame, frameBlobs) {
+  const encoded = [];
+  let totalBytes = frameBlobs.length * 4;
+  for (const blob of frameBlobs) {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const length = new Uint8Array(4);
+    new DataView(length.buffer).setUint32(0, bytes.length, false);
+    encoded.push(length, bytes);
+    totalBytes += bytes.length;
+  }
+  const chunk = new Uint8Array(totalBytes);
+  let offset = 0;
+  encoded.forEach(part => {
+    chunk.set(part, offset);
+    offset += part.length;
+  });
+  return sam2Api(`/api/sessions/${sessionId}/frames?start=${startFrame}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: chunk
+  });
+}
+
+async function prepareSam2Video() {
+  if (!sam2State.connected) {
+    alert("먼저 SAM 2 서버에 연결하세요.");
+    return;
+  }
+  if (vVideo.readyState < 2 || !Number.isFinite(vVideo.duration) || vVideo.duration <= 0) {
+    alert("먼저 영상을 불러오세요.");
+    return;
+  }
+
+  sam2State.preparing = true;
+  sam2State.sessionId = null;
+  sam2State.targets = [];
+  sam2State.selectedTargetId = null;
+  sam2State.resultCache.clear();
+  sam2State.maskImage = null;
+  sam2State.maskCanvas = null;
+  sam2State.maskFrame = -1;
+  sam2State.frameMetrics = null;
+  sam2State.jobStatus = 'idle';
+  renderSam2TargetsList();
+  updateSam2Controls();
+  const progress = document.getElementById('sam2Progress');
+  const progressText = document.getElementById('sam2ProgressText');
+  const wasPlaying = !vVideo.paused;
+  const originalTime = vVideo.currentTime;
+  vVideo.pause();
+
+  try {
+    const frameCount = Math.max(1, Math.ceil(vVideo.duration * vState.fps));
+    const created = await sam2Api('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        frame_count: frameCount,
+        width: vVideo.videoWidth,
+        height: vVideo.videoHeight,
+        fps: vState.fps
+      })
+    });
+    sam2State.sessionId = created.session_id;
+    sam2State.frameCount = frameCount;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = vVideo.videoWidth;
+    canvas.height = vVideo.videoHeight;
+    const context = canvas.getContext('2d', { willReadFrequently: false });
+    const chunkSize = 8;
+    for (let start = 0; start < frameCount; start += chunkSize) {
+      const end = Math.min(frameCount, start + chunkSize);
+      const blobs = [];
+      for (let frame = start; frame < end; frame++) {
+        blobs.push(await videoFrameToJpeg(canvas, context, frame, 0.84));
+        if (frame % 4 === 0 || frame === end - 1) {
+          progress.value = Math.round(((frame + 1) / frameCount) * 100);
+          progressText.textContent = `영상 프레임 준비 중 · ${frame + 1} / ${frameCount}`;
+        }
+      }
+      await uploadSam2FrameChunk(sam2State.sessionId, start, blobs);
+      await new Promise(resolve => requestAnimationFrame(resolve));
+    }
+    progress.value = 100;
+    progressText.textContent =
+      `${frameCount}개 프레임 준비 완료. 새 대상 지정을 누르고 영상에서 대상 내부를 클릭하세요.`;
+    document.getElementById('sam2ServerStatus').textContent = "영상 준비 완료";
+  } catch (error) {
+    sam2State.sessionId = null;
+    progressText.textContent = `영상 프레임 준비 실패: ${error.message}`;
+    alert(`SAM 2 영상 준비 실패: ${error.message}`);
+  } finally {
+    try {
+      await waitForVideoSeek(Math.min(originalTime, Math.max(0, vVideo.duration - 0.001)));
+    } catch (error) {}
+    if (wasPlaying) vVideo.play().catch(error => {
+      progressText.textContent += ` 영상 재생 복원 실패: ${error.message}`;
+    });
+    sam2State.preparing = false;
+    renderVideoOverlay();
+    updateSam2Controls();
+  }
+}
+
+function setSam2InputMode(mode) {
+  if (!sam2State.sessionId) {
+    alert("먼저 SAM 2 서버에 연결하고 영상 프레임을 준비하세요.");
+    return;
+  }
+  if (mode === 'correct' && !sam2State.selectedTargetId) {
+    alert("보정할 대상을 먼저 선택하세요.");
+    return;
+  }
+  if (mode === 'seed' && !document.getElementById('sam2TargetName').value.trim()) {
+    document.getElementById('sam2TargetName').value = `대상 ${sam2State.targets.length + 1}`;
+  }
+  sam2State.mode = mode;
+  document.getElementById('sam2ProgressText').textContent = mode === 'seed'
+    ? "새 대상 안쪽을 클릭하세요. 제외 지점은 대상을 만든 뒤 보정 모드에서 Shift+클릭으로 추가할 수 있습니다."
+    : "선택한 대상의 추적이 틀린 프레임에서 대상 안쪽을 클릭해 추가 보정하세요. Shift+클릭은 배경 제외 지점이며, 같은 프레임에 안쪽 클릭이 먼저 있어야 합니다.";
+  document.getElementById('sam2ServerStatus').textContent = mode === 'seed' ? "새 대상 클릭 대기" : "보정 클릭 대기";
+  updateSam2Controls();
+}
+
+function selectSam2Target(value) {
+  sam2State.selectedTargetId = value ? Number(value) : null;
+  sam2State.maskImage = null;
+  sam2State.maskCanvas = null;
+  sam2State.maskFrame = -1;
+  sam2State.frameMetrics = null;
+  renderSam2TargetsList();
+  loadSam2FrameOverlay();
+  updateSam2Controls();
+}
+
+function escapeSam2Text(value) {
+  return String(value).replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[character]));
+}
+
+function renderSam2TargetsList() {
+  const select = document.getElementById('sam2TargetSelect');
+  const previous = sam2State.selectedTargetId;
+  select.innerHTML = '<option value="">대상 선택</option>';
+  sam2State.targets.forEach(target => {
+    const option = document.createElement('option');
+    option.value = target.id;
+    option.textContent = target.name;
+    select.appendChild(option);
+  });
+  if (sam2State.targets.some(target => target.id === previous)) {
+    select.value = String(previous);
+  } else if (sam2State.targets.length) {
+    sam2State.selectedTargetId = sam2State.targets[0].id;
+    select.value = String(sam2State.selectedTargetId);
+  }
+
+  const list = document.getElementById('sam2TargetsList');
+  if (!sam2State.targets.length) {
+    list.textContent = "추적 대상이 없습니다.";
+    updateSam2Controls();
+    return;
+  }
+  list.innerHTML = sam2State.targets.map(target => `
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;border-top:1px solid #334155;padding:6px 0;">
+      <button class="btn-sm btn-secondary" onclick="selectSam2Target('${target.id}')">${escapeSam2Text(target.name)}</button>
+      <span>${escapeSam2Text(target.status || '준비됨')} · 시작 프레임 ${target.seed_frame}</span>
+      <button class="btn-sm btn-accent" onclick="downloadSam2Csv(${target.id},'path')">방향 동선 CSV</button>
+      <button class="btn-sm btn-secondary" onclick="downloadSam2Csv(${target.id},'screen')">화면 동선 CSV</button>
+      <button class="btn-sm btn-secondary" onclick="downloadSam2Csv(${target.id},'metrics')">추적 데이터 CSV</button>
+    </div>
+  `).join('');
+  updateSam2Controls();
+}
+
+function setSam2Preview(frame, base64, metrics) {
+  const image = new Image();
+  image.onload = () => {
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = image.naturalWidth;
+    maskCanvas.height = image.naturalHeight;
+    const context = maskCanvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+    for (let index = 0; index < pixels.data.length; index += 4) {
+      if (pixels.data[index] > 127) {
+        pixels.data[index] = 34;
+        pixels.data[index + 1] = 197;
+        pixels.data[index + 2] = 94;
+        pixels.data[index + 3] = 112;
+      } else {
+        pixels.data[index + 3] = 0;
+      }
+    }
+    context.putImageData(pixels, 0, 0);
+    sam2State.maskImage = image;
+    sam2State.maskCanvas = maskCanvas;
+    sam2State.maskFrame = frame;
+    sam2State.frameMetrics = metrics;
+    renderVideoOverlay();
+  };
+  image.src = `data:image/png;base64,${base64}`;
+}
+
+async function handleSam2VideoClick(x, y, shiftKey) {
+  const frame = Math.max(0, Math.min(sam2State.frameCount - 1, vState.currentFrame));
+  const progressText = document.getElementById('sam2ProgressText');
+  try {
+    if (sam2State.mode === 'seed') {
+      const name = document.getElementById('sam2TargetName').value.trim() || `대상 ${sam2State.targets.length + 1}`;
+      progressText.textContent = "선택 프레임에서 SAM 2 마스크 생성 중...";
+      const result = await sam2Api(`/api/sessions/${sam2State.sessionId}/tracks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, frame, x, y })
+      });
+      sam2State.targets.push({
+        id: result.id, name: result.name, seed_frame: result.seed_frame, status: '마스크 확인'
+      });
+      sam2State.selectedTargetId = result.id;
+      sam2State.mode = 'idle';
+      renderSam2TargetsList();
+      setSam2Preview(frame, result.mask_png_base64, result.metrics);
+      progressText.textContent = `‘${result.name}’ 초기 마스크입니다. 필요하면 보정 클릭을 추가한 뒤 추적을 실행하세요.`;
+    } else if (sam2State.mode === 'correct') {
+      const targetId = sam2State.selectedTargetId;
+      const result = await sam2Api(`/api/sessions/${sam2State.sessionId}/tracks/${targetId}/prompts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ frame, x, y, label: shiftKey ? 0 : 1 })
+      });
+      const target = sam2State.targets.find(item => item.id === targetId);
+      if (target) target.status = '보정 완료 · 재추적 필요';
+      sam2State.resultCache.delete(targetId);
+      sam2State.mode = 'idle';
+      renderSam2TargetsList();
+      setSam2Preview(frame, result.mask_png_base64, result.metrics);
+      progressText.textContent = `Frame ${frame} 보정 마스크를 표시했습니다. 결과를 갱신하려면 선택 대상 추적을 다시 실행하세요.`;
+    }
+  } catch (error) {
+    progressText.textContent = `SAM 2 클릭 처리 실패: ${error.message}`;
+    alert(`SAM 2 대상 지정/보정 실패: ${error.message}`);
+  } finally {
+    updateSam2Controls();
+  }
+}
+
+async function startSam2Tracking() {
+  const targetId = sam2State.selectedTargetId;
+  if (!targetId || !sam2State.sessionId) return;
+  try {
+    sam2State.resultCache.delete(targetId);
+    sam2State.jobStatus = 'running';
+    document.getElementById('sam2Progress').value = 0;
+    document.getElementById('sam2ProgressText').textContent =
+      "SAM 2가 선택 대상을 영상 끝까지 추적합니다. 이 창을 열어 두세요.";
+    updateSam2Controls();
+    await sam2Api(`/api/sessions/${sam2State.sessionId}/tracks/${targetId}/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+    pollSam2TrackingStatus();
+  } catch (error) {
+    sam2State.jobStatus = 'failed';
+    document.getElementById('sam2ProgressText').textContent = `추적을 시작하지 못했습니다: ${error.message}`;
+    updateSam2Controls();
+    alert(`SAM 2 추적 시작 실패: ${error.message}`);
+  }
+}
+
+async function pollSam2TrackingStatus() {
+  if (!sam2State.sessionId) return;
+  try {
+    const status = await sam2Api(`/api/sessions/${sam2State.sessionId}/status`);
+    sam2State.jobStatus = status.job.status;
+    sam2State.targets = status.tracks.map(track => ({ ...track }));
+    renderSam2TargetsList();
+    const total = Math.max(1, status.job.total || 1);
+    document.getElementById('sam2Progress').value =
+      Math.round(Math.min(1, status.job.progress / total) * 100);
+    document.getElementById('sam2ProgressText').textContent =
+      status.job.status === 'running'
+        ? `대상 추적 중 · ${status.job.progress} / ${total} 프레임${status.job.frame === null ? '' : ` · 현재 ${status.job.frame}프레임`}`
+        : status.job.status === 'completed'
+          ? `추적 완료 · ${status.job.progress} / ${total} 프레임`
+          : status.job.status === 'cancelled'
+            ? `추적 취소 · ${status.job.progress} 프레임까지 저장됨`
+            : status.job.status === 'failed'
+              ? `추적 실패: ${status.job.error || '자세한 오류는 SAM 2 서버 창을 확인하세요.'}`
+              : status.job.status;
+
+    if (status.job.status === 'running') {
+      updateSam2Controls();
+      sam2State.pollTimer = setTimeout(pollSam2TrackingStatus, 700);
+      return;
+    }
+    updateSam2Controls();
+    if (status.job.status === 'completed' || status.job.status === 'cancelled') {
+      const selectedId = sam2State.selectedTargetId;
+      const target = sam2State.targets.find(item => item.id === selectedId);
+      if (target) {
+        const result = await sam2Api(`/api/sessions/${sam2State.sessionId}/tracks/${selectedId}/results`);
+        sam2State.resultCache.set(selectedId, result.frames || []);
+        if (target.status === 'completed') target.status = '완료';
+        renderSam2TargetsList();
+        await loadSam2FrameOverlay();
+      }
+    }
+  } catch (error) {
+    sam2State.jobStatus = 'failed';
+    document.getElementById('sam2ProgressText').textContent = `추적 상태 확인 실패: ${error.message}`;
+    updateSam2Controls();
+  }
+}
+
+async function cancelSam2Tracking() {
+  if (!sam2State.sessionId) return;
+  try {
+    await sam2Api(`/api/sessions/${sam2State.sessionId}/cancel`, { method: 'POST', body: '{}' });
+    document.getElementById('sam2ProgressText').textContent = "추적 취소 요청을 보냈습니다...";
+  } catch (error) {
+    alert(`추적 취소 실패: ${error.message}`);
+  }
+}
+
+async function loadSam2FrameOverlay() {
+  const targetId = sam2State.selectedTargetId;
+  if (!targetId || !sam2State.sessionId || sam2State.jobStatus === 'running') return;
+  const frame = Math.max(0, Math.min(sam2State.frameCount - 1, vState.currentFrame));
+  const requestId = ++sam2State.frameRequestId;
+  try {
+    const result = await sam2Api(`/api/sessions/${sam2State.sessionId}/tracks/${targetId}/frame/${frame}`);
+    if (requestId !== sam2State.frameRequestId || sam2State.selectedTargetId !== targetId) return;
+    setSam2Preview(frame, result.mask_png_base64, result.metrics);
+  } catch (error) {
+    if (requestId !== sam2State.frameRequestId) return;
+    sam2State.maskImage = null;
+    sam2State.maskCanvas = null;
+    sam2State.maskFrame = frame;
+    sam2State.frameMetrics = null;
+    renderVideoOverlay();
+  }
+}
+
+async function downloadSam2Csv(targetId, kind) {
+  if (!sam2State.sessionId) return;
+  try {
+    const result = await sam2Api(`/api/sessions/${sam2State.sessionId}/tracks/${targetId}/results`);
+    const frames = result.frames || [];
+    const target = sam2State.targets.find(item => item.id === targetId);
+    const safeName = (target ? target.name : `target_${targetId}`).replace(/[^a-z0-9_-]+/gi, '_');
+    if (kind === 'path') {
+      // 3단계 렌더링·믹스 트랙에 바로 넣을 수 있는 동선 CSV. 화면 밖 프레임은 직전 방향을 유지하고 visible=0
+      const firstVisible = frames.find(row => row.visible);
+      if (!firstVisible) throw new Error("대상이 보이는 프레임이 없습니다.");
+      let last = firstVisible;
+      const csvRows = ['frame,time_s,azimuth_deg,elevation_deg,distance_m,visible,x_px,y_px'];
+      frames.forEach(row => {
+        if (row.visible) last = row;
+        const dir = videoPixelToDirection(last.screen_x, last.screen_y);
+        csvRows.push([row.frame, (row.frame / vState.fps).toFixed(4), dir.azimuthDeg.toFixed(2),
+          dir.elevationDeg.toFixed(2), '1.0', row.visible ? 1 : 0,
+          last.screen_x.toFixed(1), last.screen_y.toFixed(1)].join(','));
+      });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([csvRows.join('\n') + '\n'], { type: 'text/csv;charset=utf-8;' }));
+      link.download = `${safeName}_path.csv`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      return;
+    }
+    const columns = kind === 'screen'
+      ? ['frame', 'screen_x', 'screen_y', 'visible']
+      : ['frame', 'bbox_x', 'bbox_y', 'bbox_width', 'bbox_height', 'mask_area', 'confidence', 'screen_x', 'screen_y', 'visible'];
+    const csvRows = [columns.join(',')];
+    frames.forEach(row => {
+      csvRows.push(columns.map(column => {
+        const value = row[column];
+        if (value === null || value === undefined) return '';
+        return column === 'confidence' || column === 'screen_x' || column === 'screen_y'
+          ? Number(value).toFixed(4)
+          : value;
+      }).join(','));
+    });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob(['\uFEFF', csvRows.join('\r\n')], { type: 'text/csv;charset=utf-8;' }));
+    link.download = `${safeName}_${kind === 'screen' ? 'screen_path' : 'track_metrics'}.csv`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  } catch (error) {
+    alert(`대상 CSV 저장 실패: ${error.message}`);
+  }
+}
+
+function renderSam2Overlay() {
+  const frame = Math.max(0, Math.min(sam2State.frameCount - 1, vState.currentFrame));
+  if (sam2State.maskCanvas && sam2State.maskFrame === frame) {
+    vCtx.drawImage(sam2State.maskCanvas, 0, 0, vOverlayCanvas.width, vOverlayCanvas.height);
+  }
+  const metrics = sam2State.frameMetrics;
+  if (metrics && metrics.visible && sam2State.maskFrame === frame) {
+    const topLeft = vToCanvasCoord(metrics.bbox_x, metrics.bbox_y);
+    const bottomRight = vToCanvasCoord(
+      metrics.bbox_x + metrics.bbox_width,
+      metrics.bbox_y + metrics.bbox_height
+    );
+    vCtx.save();
+    vCtx.strokeStyle = "#22c55e";
+    vCtx.lineWidth = 2;
+    vCtx.strokeRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+    const center = vToCanvasCoord(metrics.screen_x, metrics.screen_y);
+    vCtx.fillStyle = "#22c55e";
+    vCtx.beginPath();
+    vCtx.arc(center.x, center.y, 4, 0, Math.PI * 2);
+    vCtx.fill();
+    vCtx.restore();
+  }
+
+  const results = sam2State.resultCache.get(sam2State.selectedTargetId);
+  if (results && results.length) {
+    vCtx.save();
+    vCtx.strokeStyle = "rgba(34,197,94,0.9)";
+    vCtx.lineWidth = 2;
+    vCtx.beginPath();
+    let drawing = false;
+    results.forEach(row => {
+      if (!row.visible || row.screen_x === null || row.screen_y === null) {
+        drawing = false;
+        return;
+      }
+      const point = vToCanvasCoord(row.screen_x, row.screen_y);
+      if (!drawing) {
+        vCtx.moveTo(point.x, point.y);
+        drawing = true;
+      } else {
+        vCtx.lineTo(point.x, point.y);
+      }
+    });
+    vCtx.stroke();
+    vCtx.restore();
+  }
+
+  if (sam2State.frameMetrics && sam2State.maskFrame === frame) {
+    const item = sam2State.frameMetrics;
+    document.getElementById('sam2FrameInfo').textContent = item.visible
+      ? `Frame ${frame} · box ${item.bbox_width}×${item.bbox_height} px · mask ${item.mask_area} px² · confidence ${Number(item.confidence).toFixed(3)}`
+      : `Frame ${frame} · 추적 결과 없음`;
+  } else {
+    document.getElementById('sam2FrameInfo').textContent = `Frame ${frame} · 저장된 마스크가 없습니다.`;
+  }
+}
+
+vOverlayCanvas.addEventListener('click', (e) => {
+  const rect = vOverlayCanvas.getBoundingClientRect();
+  const vidCoord = canvasToVCoord(e.clientX - rect.left, e.clientY - rect.top);
+  if (beeState.inputMode !== 'idle') handleBeeOverlayClick(vidCoord.x, vidCoord.y);
+  else if (sam2State.mode === 'seed' || sam2State.mode === 'correct') {
+    handleSam2VideoClick(vidCoord.x, vidCoord.y, e.shiftKey);
+  }
+  else calculateVideoDirection(vidCoord.x, vidCoord.y);
+});
+
+vOverlayCanvas.addEventListener('mousemove', (e) => {
+  const rect = vOverlayCanvas.getBoundingClientRect();
+  const vidCoord = canvasToVCoord(e.clientX - rect.left, e.clientY - rect.top);
+  document.getElementById('vHudCursor').textContent = `X: ${Math.round(vidCoord.x)}, Y: ${Math.round(vidCoord.y)}`;
+});
+
+function addVideoKeyframe() {
+  if (!vState.marker.active) {
+    alert("먼저 영상에서 방향을 측정할 지점을 클릭하세요.");
+    return;
+  }
+  const existingIdx = vState.keyframes.findIndex(k => k.frame === vState.currentFrame);
+  const kfData = {
+    frame: vState.currentFrame,
+    timeSec: (vState.currentFrame / vState.fps),
+    azimuth: parseFloat(vState.marker.azimuth.toFixed(2)),
+    elevation: parseFloat(vState.marker.elevation.toFixed(2)),
+    x: vState.marker.x,
+    y: vState.marker.y
+  };
+  if (existingIdx >= 0) vState.keyframes[existingIdx] = kfData;
+  else {
+    vState.keyframes.push(kfData);
+    vState.keyframes.sort((a, b) => a.frame - b.frame);
+  }
+  updateVideoKfTable();
+  renderVideoOverlay();
+}
+
+function setBeeInputMode(mode) {
+  if (mode === 'front' && !beeState.origin) {
+    alert("먼저 영상에서 ‘나’ 위치를 지정하세요.");
+    return;
+  }
+  if (mode === 'track' && (!beeState.origin || !beeState.front)) {
+    alert("먼저 ‘나’ 위치와 정면 방향을 지정하세요.");
+    return;
+  }
+  beeState.inputMode = mode;
+  const status = document.getElementById('beeTrackStatus');
+  if (mode === 'me') status.textContent = "영상에서 ‘나’ 위치를 클릭하세요";
+  else if (mode === 'front') status.textContent = "‘나’가 바라보는 정면을 클릭하세요";
+  else status.textContent = "현재 프레임의 벌 떼 중심을 클릭하세요";
+}
+
+function handleBeeOverlayClick(x, y) {
+  x = Math.round(x);
+  y = Math.round(y);
+  if (beeState.inputMode === 'me') {
+    beeState.origin = { x, y };
+    beeState.front = null;
+    beeState.keyframes = [];
+    document.getElementById('btnBeeSetFront').disabled = false;
+    document.getElementById('btnBeeTrack').disabled = true;
+    updateBeeKeyframeTable();
+    setBeeInputMode('front');
+  } else if (beeState.inputMode === 'front') {
+    if (Math.hypot(x - beeState.origin.x, y - beeState.origin.y) < 3) {
+      alert("정면 방향은 ‘나’ 위치에서 떨어진 점으로 지정하세요.");
+      return;
+    }
+    beeState.front = { x, y };
+    document.getElementById('btnBeeTrack').disabled = false;
+    setBeeInputMode('track');
+  } else if (beeState.inputMode === 'track') {
+    addBeeKeyframe(x, y, document.getElementById('beeVisible').checked);
+  }
+  renderVideoOverlay();
+}
+
+function addBeeKeyframe(x, y, visible) {
+  if (!beeState.origin || !beeState.front) {
+    alert("먼저 ‘나’ 위치와 정면 방향을 지정하세요.");
+    return;
+  }
+  const frame = vState.currentFrame;
+  const previous = beeState.keyframes.find(kf => kf.frame === frame);
+  const keyframe = {
+    frame,
+    timeSec: frame / vState.fps,
+    x: Math.round(x),
+    y: Math.round(y),
+    azimuth: visible ? beeAzimuthAt(x, y) : (previous ? previous.azimuth : 0),
+    visible
+  };
+  const nextKeys = beeState.keyframes.filter(kf => kf.frame !== frame).concat(keyframe)
+    .sort((a, b) => a.frame - b.frame);
+  const tooWide = nextKeys.some((kf, i) => i > 0 && kf.frame - nextKeys[i - 1].frame > 10);
+  if (tooWide) {
+    alert("연속 키프레임 간격은 최대 10프레임입니다. 중간 프레임을 추가하세요.");
+    return;
+  }
+  beeState.keyframes = nextKeys;
+  updateBeeKeyframeTable();
+  renderVideoOverlay();
+  document.getElementById('beeTrackStatus').textContent =
+    `Frame ${frame}: ${visible ? `${keyframe.azimuth >= 0 ? '+' : ''}${keyframe.azimuth.toFixed(1)}°` : '벌 떼 보이지 않음'}`;
+}
+
+function recordBeeInvisible() {
+  if (beeState.inputMode !== 'track') {
+    alert("먼저 ‘벌 떼 추적 입력’을 선택하세요.");
+    return;
+  }
+  document.getElementById('beeVisible').checked = false;
+  const lastVisible = beeState.keyframes.slice().reverse().find(kf => kf.visible);
+  const point = lastVisible || beeState.origin;
+  addBeeKeyframe(point.x, point.y, false);
+}
+
+function updateBeeKeyframeTable() {
+  const body = document.getElementById('beeKeyframeRows');
+  document.getElementById('beeKeyframeCount').textContent = `키프레임 ${beeState.keyframes.length}개`;
+  if (!beeState.keyframes.length) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#64748b; padding:10px;">키프레임이 없습니다.</td></tr>';
+    return;
+  }
+  body.innerHTML = beeState.keyframes.map(kf => `
+    <tr onclick="seekVideoFrame(${kf.frame})">
+      <td>${kf.frame}</td><td>${kf.timeSec.toFixed(3)}</td>
+      <td style="color:${kf.visible ? '#34d399' : '#f87171'};">${kf.visible ? '보임' : '안 보임'}</td>
+      <td style="color:#fbbf24;">${kf.visible ? `${kf.azimuth >= 0 ? '+' : ''}${kf.azimuth.toFixed(1)}°` : '—'}</td>
+      <td>${kf.x}</td><td>${kf.y}</td>
+    </tr>
+  `).join('');
+}
+
+function clearBeeTrack() {
+  if (!confirm("‘나’ 위치, 정면 방향과 벌 떼 키프레임을 모두 초기화할까요?")) return;
+  if (beeState.playingTrial) endBeeTrial();
+  beeState.inputMode = 'idle';
+  beeState.origin = null;
+  beeState.front = null;
+  beeState.keyframes = [];
+  document.getElementById('btnBeeSetFront').disabled = true;
+  document.getElementById('btnBeeTrack').disabled = true;
+  document.getElementById('beeTrackStatus').textContent = "기준 위치를 지정하세요";
+  updateBeeKeyframeTable();
+  renderVideoOverlay();
+}
+
+function buildBeePathData() {
+  if (!beeState.keyframes.length) throw new Error("벌 떼 키프레임을 먼저 추가하세요.");
+  if (!beeState.origin || !beeState.front) throw new Error("‘나’ 위치와 정면 방향을 지정하세요.");
+  const keys = beeState.keyframes;
+  if (keys.some((kf, i) => i > 0 && kf.frame - keys[i - 1].frame > 10)) {
+    throw new Error("키프레임 간격이 10프레임을 초과합니다.");
+  }
+  const times = [], azimuths = [], elevations = [], distances = [], visible = [], xPixels = [], yPixels = [];
+  for (let frame = 0; frame <= vState.totalFrames; frame++) {
+    const position = beePositionAtFrame(frame);
+    times.push(frame / vState.fps);
+    azimuths.push(position && position.visible ? position.azimuth : 0);
+    elevations.push(0);
+    distances.push(2);
+    visible.push(position && position.visible ? 1 : 0);
+    xPixels.push(position && position.visible ? position.x : '');
+    yPixels.push(position && position.visible ? position.y : '');
+  }
+  return { times, azimuths, elevations, distances, visible, xPixels, yPixels };
+}
+
+function exportBeePathCsv() {
+  try {
+    const path = buildBeePathData();
+    let csv = "frame,time_s,azimuth_deg,elevation_deg,distance_m,visible,x_px,y_px\n";
+    for (let frame = 0; frame < path.times.length; frame++) {
+      csv += `${frame},${path.times[frame].toFixed(4)},${path.azimuths[frame].toFixed(2)},0,2,${path.visible[frame]},${path.xPixels[frame]},${path.yPixels[frame]}\n`;
+    }
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'bee_swarm_path.csv';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (error) {
+    alert(`CSV 저장 실패: ${error.message}`);
+  }
+}
+
+function endBeeTrial() {
+  if (!beeState.playingTrial) return;
+  beeState.playingTrial = false;
+  vVideo.pause();
+  stopPlayback();
+  document.getElementById('chkLoop').checked = beeState.previousLoop;
+  document.getElementById('beeTrackStatus').textContent = "시험 재생 종료";
+}
+
+function testPlayBeePath() {
+  let path;
+  try {
+    path = buildBeePathData();
+  } catch (error) {
+    alert(`시험 재생을 시작할 수 없습니다: ${error.message}`);
+    return;
+  }
+  if (vVideo.readyState < 1 || !Number.isFinite(vState.duration) || vState.duration <= 0) {
+    alert("먼저 영상을 불러오세요.");
+    return;
+  }
+  if (beeState.playingTrial) endBeeTrial();
+  currentPathData = path;
+  currentPresetKey = 'bee_swarm_path';
+  document.querySelectorAll('.btn-preset').forEach(button => button.classList.remove('active'));
+  document.getElementById('csvBadge').textContent = '벌 떼 추적 동선';
+  setOutputMode('multichannel');
+  switchTab('step_video');
+  stopPlayback();
+  beeState.previousLoop = document.getElementById('chkLoop').checked;
+  document.getElementById('chkLoop').checked = false;
+  beeState.playingTrial = true;
+  seekVideoFrame(0);
+  startPlaybackAtSample(0);
+  document.getElementById('beeTrackStatus').textContent =
+    audioCtx.destination.maxChannelCount >= 4 ? "4채널 시험 재생 중" : "4채널 미지원: 스테레오 시험 재생 중";
+  vVideo.play().catch(error => {
+    endBeeTrial();
+    alert(`영상 재생을 시작할 수 없습니다: ${error.message}`);
+  });
+}
+
+function updateVideoKfTable() {
+  document.getElementById('vKfCount').textContent = vState.keyframes.length;
+  const tbody = document.getElementById('vKfTableBody');
+  if (vState.keyframes.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#64748b; padding:12px;">화면을 클릭하고 [K]를 누르면 저장됩니다.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = vState.keyframes.map(kf => `
+    <tr onclick="seekVideoFrame(${kf.frame})">
+      <td>${kf.frame}</td>
+      <td>${kf.timeSec.toFixed(3)}</td>
+      <td style="color:#38bdf8;">${kf.azimuth >= 0 ? '+' : ''}${kf.azimuth.toFixed(1)}°</td>
+      <td style="color:#a855f7;">${kf.elevation >= 0 ? '+' : ''}${kf.elevation.toFixed(1)}°</td>
+      <td>${kf.x}</td>
+      <td>${kf.y}</td>
+    </tr>
+  `).join('');
+}
+
+function clearVideoKeyframes() {
+  if (confirm("모든 키프레임을 삭제하시겠습니까?")) {
+    vState.keyframes = [];
+    updateVideoKfTable();
+    renderVideoOverlay();
+  }
+}
+
+function clearVideoMarker() {
+  vState.marker.active = false;
+  document.getElementById('vValAzimuth').textContent = "0.0°";
+  document.getElementById('vDescAzimuth').textContent = "정면 중앙 (0.0°)";
+  document.getElementById('vValElevation').textContent = "0.0°";
+  document.getElementById('vDescElevation').textContent = "수평 중앙 (0.0°)";
+  renderVideoOverlay();
+  renderVideoCompass();
+}
+
+function exportVideoPathCsv() {
+  if (vState.keyframes.length === 0) {
+    alert("저장된 키프레임이 없습니다. 먼저 화면을 클릭하여 키프레임을 추가하세요.");
+    return;
+  }
+  let csv = "frame,time_s,azimuth_deg,elevation_deg,distance_m,x_px,y_px\n";
+  vState.keyframes.forEach(kf => {
+    csv += `${kf.frame},${kf.timeSec.toFixed(3)},${kf.azimuth.toFixed(2)},${kf.elevation.toFixed(2)},1.0,${kf.x},${kf.y}\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `video_object_path.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ⚡ 2회차에서 추출한 동선을 3단계 렌더링에 즉시 적용
+function applyVideoPathToStep3() {
+  if (vState.keyframes.length < 2) {
+    alert("3단계 렌더링에 적용하려면 최소 2개 이상의 키프레임이 필요합니다.");
+    return;
+  }
+  const times = vState.keyframes.map(k => k.timeSec);
+  const azs = vState.keyframes.map(k => k.azimuth);
+  const els = vState.keyframes.map(k => k.elevation);
+  const dists = vState.keyframes.map(() => 2.0); // 기준 거리 2.0m
+
+  currentPathData = { times, azimuths: azs, elevations: els, distances: dists };
+  currentPresetKey = 'video_tracked_path';
+  document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+  document.getElementById('csvBadge').innerText = '비디오 추적 동선';
+
+  switchTab('step3');
+  stopPlayback();
+  alert("비디오에서 분석한 동선이 [3단계: 렌더링] 평면도에 성공적으로 적용되었습니다! [재생]을 누르면 4채널 사운드를 들어볼 수 있습니다.");
+}
+
+// =============================================================================
+// UI 탭 전환 및 보조 제어
+// =============================================================================
+function switchTab(tab) {
+  document.querySelector('.main-layout').classList.toggle('mix-layout', tab === 'step_mix');
+  document.querySelectorAll('.step-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel-section').forEach(p => p.classList.remove('active-panel'));
+
+  const viewRadar = document.getElementById('viewRadarCard');
+  const viewVideo = document.getElementById('viewVideoCard');
+
+  if (tab === 'step1') {
+    document.querySelectorAll('.step-tab')[0].classList.add('active');
+    document.getElementById('panelStep1').classList.add('active-panel');
+    viewRadar.style.display = 'block';
+    viewVideo.style.display = 'none';
+  } else if (tab === 'step2' || tab === 'step3') {
+    document.querySelectorAll('.step-tab')[tab === 'step2' ? 1 : 2].classList.add('active');
+    document.getElementById('panelStep3').classList.add('active-panel');
+    viewRadar.style.display = 'block';
+    viewVideo.style.display = 'none';
+  } else if (tab === 'step4') {
+    document.querySelectorAll('.step-tab')[3].classList.add('active');
+    document.getElementById('panelStep4').classList.add('active-panel');
+    viewRadar.style.display = 'block';
+    viewVideo.style.display = 'none';
+  } else if (tab === 'step_video') {
+    document.getElementById('tabBtnVideo').classList.add('active');
+    document.getElementById('panelStepVideo').classList.add('active-panel');
+    viewRadar.style.display = 'none';
+    viewVideo.style.display = 'block';
+    setTimeout(resizeVideoCanvas, 50);
+  } else if (tab === 'step_mix') {
+    document.getElementById('tabBtnMix').classList.add('active');
+    document.getElementById('panelStepMix').classList.add('active-panel');
+    viewRadar.style.display = 'none';
+    viewVideo.style.display = 'block';
+    renderMixTracks();
+    setTimeout(resizeVideoCanvas, 50);
+  } else {
+    // 통합 뷰: 모두 표시
+    document.querySelectorAll('.step-tab')[6].classList.add('active');
+    document.getElementById('panelStep3').classList.add('active-panel');
+    document.getElementById('panelStep4').classList.add('active-panel');
+    document.getElementById('panelStep1').classList.add('active-panel');
+    document.getElementById('panelStepVideo').classList.add('active-panel');
+    viewRadar.style.display = 'block';
+    viewVideo.style.display = 'block';
+    setTimeout(resizeVideoCanvas, 50);
+  }
+}
+
+function selectPreset(key) {
+  currentPresetKey = key;
+  if (typeof window !== 'undefined' && window.PRESETS && window.PRESETS[key]) {
+    currentPathData = window.PRESETS[key];
+  }
+  document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+  const btnMap = { path_1: 'pBtn1', path_2: 'pBtn2', path_3: 'pBtn3', path_4: 'pBtn4' };
+  if (btnMap[key]) document.getElementById(btnMap[key]).classList.add('active');
+  document.getElementById('csvBadge').innerText = key.replace('path_', '동선 ');
+  stopPlayback();
+}
+
+function setOutputMode(mode) {
+  outputMode = mode;
+  document.getElementById('btnModeDownmix').classList.toggle('active', mode === 'downmix');
+  document.getElementById('btnModeMulti').classList.toggle('active', mode === 'multichannel');
+  rebuildGraph();
+}
+
+function changeAudioSource(src) {
+  selectedAudioSource = src;
+  if (isPlaying) startPlaybackAtSample(currentSamples);
+}
+
+function onMasterVolChange(val) {
+  calib.masterVol = parseFloat(val) / 100.0;
+  invalidateScenarioRender();
+  document.getElementById('txtMasterVol').innerText = `${val}%`;
+  if (masterGainNode && audioCtx) masterGainNode.gain.setValueAtTime(calib.masterVol, audioCtx.currentTime);
+}
+
+function updateRouting() {
+  SPEAKERS[0].assignedCh = parseInt(document.getElementById('routeFL').value, 10);
+  SPEAKERS[1].assignedCh = parseInt(document.getElementById('routeFR').value, 10);
+  SPEAKERS[2].assignedCh = parseInt(document.getElementById('routeRL').value, 10);
+  SPEAKERS[3].assignedCh = parseInt(document.getElementById('routeRR').value, 10);
+  invalidateScenarioRender();
+  rebuildGraph();
+}
+
+function resetRouting() {
+  SPEAKERS.forEach((s, i) => {
+    s.assignedCh = s.defaultCh;
+  });
+  document.getElementById('routeFL').value = 0;
+  document.getElementById('routeFR').value = 1;
+  document.getElementById('routeRL').value = 2;
+  document.getElementById('routeRR').value = 3;
+  invalidateScenarioRender();
+  rebuildGraph();
+}
+
+function runSeqTest() {
+  pausePlayback();
+  initAudio();
+  for (let i = 0; i < 4; i++) {
+    setTimeout(() => {
+      SPEAKERS[i].active = true;
+      scheduleAnimationLoop();
+      const osc = audioCtx.createOscillator();
+      const env = audioCtx.createGain();
+      osc.frequency.value = [440, 554, 330, 659][i];
+      const t = audioCtx.currentTime;
+      env.gain.setValueAtTime(0.001, t);
+      env.gain.linearRampToValueAtTime(0.7, t + 0.05);
+      env.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+      osc.connect(env);
+      env.connect(speakerGainNodes[i]);
+      osc.start(t);
+      osc.stop(t + 0.75);
+      setTimeout(() => { SPEAKERS[i].active = false; }, 750);
+    }, i * 900);
+  }
+}
+
+// Base64 오디오 디코딩
+function decodeBase64Audios() {
+  initAudio();
+  if (typeof window !== 'undefined' && window.DEFAULT_MOVING_SOUND_WAV_BASE64) {
+    try {
+      const bin = atob(window.DEFAULT_MOVING_SOUND_WAV_BASE64);
+      const b = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+      audioCtx.decodeAudioData(b.buffer.slice(0), (buf) => { b64MovingBuffer = buf; });
+    } catch(e) { console.warn("Moving sound decode skipped", e); }
+  }
+  if (typeof window !== 'undefined' && window.DEFAULT_CHANNEL_TEST_WAV_BASE64) {
+    try {
+      const bin = atob(window.DEFAULT_CHANNEL_TEST_WAV_BASE64);
+      const b = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+      audioCtx.decodeAudioData(b.buffer.slice(0), (buf) => { b64ChannelBuffer = buf; });
+    } catch(e) { console.warn("Channel test decode skipped", e); }
+  }
+}
+
+// 캔버스 클릭 시 스피커 테스트
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  const spkR = Math.min(cx, cy) - 35;
+
+  SPEAKERS.forEach((spk, idx) => {
+    const rad = spk.azimuth * Math.PI / 180;
+    const sx = cx + spkR * Math.sin(rad);
+    const sy = cy - spkR * Math.cos(rad);
+    if (Math.hypot(mx - sx, my - sy) < 24) {
+      initAudio();
+      spk.active = true;
+      scheduleAnimationLoop();
+      const osc = audioCtx.createOscillator();
+      const env = audioCtx.createGain();
+      osc.frequency.value = [440, 554, 330, 659][idx];
+      const t = audioCtx.currentTime;
+      env.gain.setValueAtTime(0.001, t);
+      env.gain.linearRampToValueAtTime(0.7, t + 0.05);
+      env.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+      osc.connect(env);
+      env.connect(speakerGainNodes[idx]);
+      osc.start(t);
+      osc.stop(t + 0.75);
+      setTimeout(() => { spk.active = false; }, 750);
+    }
+  });
+});
+
+// 키보드 단축키
+window.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' && e.target.type === 'number') return;
+  const isVideoTabActive = document.getElementById('viewVideoCard').style.display !== 'none';
+
+  if (isVideoTabActive) {
+    switch(e.key) {
+      case ' ':
+        e.preventDefault();
+        toggleVideoPlay();
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        if (e.shiftKey) seekVideoFrame(vState.currentFrame - 5);
+        else seekVideoFrame(vState.currentFrame - 1);
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        if (e.shiftKey) seekVideoFrame(vState.currentFrame + 5);
+        else seekVideoFrame(vState.currentFrame + 1);
+        break;
+      case 'Home':
+        e.preventDefault();
+        seekVideoFrame(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        seekVideoFrame(vState.totalFrames);
+        break;
+      case 'k':
+      case 'K':
+        e.preventDefault();
+        addVideoKeyframe();
+        break;
+      case 'c':
+      case 'C':
+        e.preventDefault();
+        clearVideoMarker();
+        break;
+    }
+  } else {
+    if (e.key === ' ') {
+      e.preventDefault();
+      togglePlayPause();
+    }
+  }
+});
+
+window.addEventListener('resize', () => {
+  resizeVideoCanvas();
+});
+
+// 초기화
+decodeBase64Audios();
+renderRadar();
+updateVUMeters();
+updateVFovCalculations();
+renderVideoCompass();
+renderMixTracks();
+</script>
+</body>
+</html>

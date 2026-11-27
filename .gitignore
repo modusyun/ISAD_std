@@ -1,0 +1,16 @@
+# SAM 2 model checkpoints (auto-downloaded by sam2_server.py; exceeds GitHub 100MB limit)
+checkpoints/
+
+# Runtime tracking cache and exports
+sam2_tracker_data/
+exports/
+
+# Python virtual environments and cache
+.venv/
+.venv-win/
+__pycache__/
+*.py[cod]
+
+# OS metadata
+.DS_Store
+._*
